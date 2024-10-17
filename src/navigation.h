@@ -10,7 +10,16 @@
 using namespace std;
 
 enum AppMainStateEnum { Sleep, Awaken };
-enum MainMenuEnum { None, Calibration, Move, MoveSmoothly, AppMode, ServoSelection };
+enum MainMenuEnum {
+    MainMenuNone,
+    MainMenuCalibration,
+    MainMenuMove,
+    MainMenuMoveSmoothly,
+    MainMenuMoveBothServos,
+    MainMenuMoveBothServosSmoothly,
+    MainMenuAppMode,
+    MainMenuServoSelection
+};
 enum CalibrationStepEnum { CalibrationStepMin, CalibrationStepMax };
 enum ServoEnum { ServoPullOpen, ServoPullClose};
 
@@ -56,6 +65,8 @@ class Navigation {
         void activateMenuChoosing();
         void deactivateMenuChoosing();
 
+        void assignRangesForMainMenu(vector<MainMenuEnum>);
+
         // Find
         MainMenuEnum findMenuSelection(uint8_t position);
         ServoEnum findServoSelection(uint8_t position);
@@ -73,6 +84,7 @@ class Navigation {
 
         // Servo
         void moveServoSmoothlyTo();
+        void moveBothServosSmoothlyTo();
 
         // Other
         uint16_t getPotentiometerValue();

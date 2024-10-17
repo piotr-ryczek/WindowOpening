@@ -1,3 +1,3 @@
 #include <config.h>
 
-AppModeEnum appMode = Manual; 
+AppModeEnum AppMode = Manual; // Always initializing with Manual for security reasons (not stored in memory)

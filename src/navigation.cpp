@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <cmath>
 #include <navigation.h>
 #include <analogTranslationHelpers.h>
 
@@ -6,8 +7,8 @@ const uint16_t deadPotentiometerMargin = 100; // In range 0-4095
 
 Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led) {
     this->appMainState = Sleep;
-    this->mainMenuState = None; // Chosen menu
-    this->mainMenuTemporaryState = None; // Temporary position while selecting
+    this->mainMenuState = MainMenuNone; // Chosen menu
+    this->mainMenuTemporaryState = MainMenuNone; // Temporary position while selecting
     this->mainMenuTemporaryAnalogPosition = -1; // By default unset; 0-4095 (Analog value)
     this->isMenuSelectionActivated = false;
     this->potentiometerGpio = potentiometerGpio;
@@ -18,34 +19,7 @@ Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, Serv
     this->temporaryAppMode = Manual; // Temporary value while rotating potentiometer
     this->appMode = appMode;
 
-    // TODO: Function to assign automatically ranges
-    this->mainMenuPositions = {
-        MainMenuPosition{
-            name: Calibration,
-            from: 0,
-            to: 20
-        },
-        MainMenuPosition{
-            name: Move,
-            from: 20,
-            to: 40
-        },
-        MainMenuPosition{
-            name: MoveSmoothly,
-            from: 40,
-            to: 60
-        },
-        MainMenuPosition{
-            name: ServoSelection,
-            from: 60,
-            to: 80
-        },
-        MainMenuPosition{
-            name: AppMode,
-            from: 80,
-            to: 100
-        }
-    };
+    this->assignRangesForMainMenu(vector<MainMenuEnum> { MainMenuCalibration, MainMenuMove, MainMenuMoveBothServos, MainMenuMoveSmoothly, MainMenuMoveBothServosSmoothly, MainMenuServoSelection, MainMenuAppMode });
 
     this->servoSelectionPositions = {
         ServoSelectionPosition{
@@ -72,6 +46,63 @@ Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, Serv
             to: 100
         }
     };
+}
+
+// this->mainMenuPositions = {
+//         MainMenuPosition{
+//             name: MainMenuCalibration,
+//             from: 0,
+//             to: 20
+//         },
+//         MainMenuPosition{
+//             name: MainMenuMove,
+//             from: 20,
+//             to: 40
+//         },
+//         MainMenuPosition{
+//             name: MainMenuMoveBothServos,
+//             from: 20,
+//             to: 40
+//         },
+//         MainMenuPosition{
+//             name: MainMenuMoveSmoothly,
+//             from: 40,
+//             to: 60
+//         },
+//         MainMenuPosition{
+//             name: MainMenuMoveBothServosSmoothly,
+//             from: 40,
+//             to: 60
+//         },
+//         MainMenuPosition{
+//             name: MainMenuServoSelection,
+//             from: 60,
+//             to: 80
+//         },
+//         MainMenuPosition{
+//             name: MainMenuAppMode,
+//             from: 80,
+//             to: 100
+//         }
+//     };
+
+void Navigation::assignRangesForMainMenu(vector<MainMenuEnum> positions) {
+    if (positions.empty()) {
+        throw std::runtime_error("Position cannot be empty");
+    }
+
+    int step = 100 / positions.size();
+
+    int index = 0;
+    for (auto& position : positions) {
+        this->mainMenuPositions.push_back(MainMenuPosition{
+            name: position,
+            from: ceil(index * step),
+            to: ceil((index + 1) * step),
+        });
+
+        index++;
+    }
 }
 
 void Navigation::logAppState() {
@@ -105,15 +136,14 @@ void Navigation::handleForward() {
         
         case Awaken: {
             switch (mainMenuState) {
-                case None: {
+                case MainMenuNone: {
                     this->confirmMenuSelection();
                     this->deactivateMenuChoosing();
 
                     break;
-                }
-                    
+                }       
 
-                case Calibration: {
+                case MainMenuCalibration: {
                     switch (calibrationStep) {
                         case CalibrationStepMin: {
                             this->calibrationStep = CalibrationStepMax;
@@ -126,33 +156,31 @@ void Navigation::handleForward() {
                             this->setServoCalibrationMax();
 
                             // Back to Main Menu
-                            mainMenuState = None;
+                            mainMenuState = MainMenuNone;
                             this->activateMenuChoosing();
 
                             break;
                         }
-
-
                     }
 
                     break;
                 }
 
-                case ServoSelection: {
+                case MainMenuServoSelection: {
                     this->confirmServoSelection();
                 }
 
-                case AppMode: {
+                case MainMenuAppMode: {
                     this->confirmAppModeSelection();
                     break;
                 }
 
-                case Move: {
+                case MainMenuMove: {
                     // Nothing
                     break;
                 }
 
-                case MoveSmoothly: {
+                case MainMenuMoveSmoothly: {
                     this->moveServoSmoothlyTo(); // Set new target
                     break;
                 }
@@ -167,19 +195,19 @@ void Navigation::handleBackward() {
     switch(appMainState) {
         case Awaken: {
             switch (mainMenuState) {
-                case None: {
+                case MainMenuNone: {
                     appMainState = Sleep;
                     this->deactivateMenuChoosing();
 
                     break;
                 }
 
-                case Calibration:
-                case Move:
-                case MoveSmoothly:
-                case AppMode:
-                case ServoSelection: {
-                    mainMenuState = None;
+                case MainMenuCalibration:
+                case MainMenuMove:
+                case MainMenuMoveSmoothly:
+                case MainMenuAppMode:
+                case MainMenuServoSelection: {
+                    mainMenuState = MainMenuNone;
                     this->activateMenuChoosing();
 
                     break;
@@ -206,7 +234,7 @@ MainMenuEnum Navigation::findMenuSelection(uint8_t position) {
         }
     }
 
-    return None;
+    return MainMenuNone;
 }
 
 ServoEnum Navigation::findServoSelection(uint8_t position) {
@@ -359,17 +387,17 @@ String Navigation::translateAppMainStateEnumIntoString(AppMainStateEnum appMainS
 
 String Navigation::translateMainMenuStateEnumIntoString(MainMenuEnum mainMenuState) {
     switch (mainMenuState) {
-        case None:
+        case MainMenuNone:
             return "None";
-        case Calibration:
+        case MainMenuCalibration:
             return "Calibration";
-        case Move:
+        case MainMenuMove:
             return "Move";
-        case MoveSmoothly:
+        case MainMenuMoveSmoothly:
             return "MoveSmoothly";
-        case AppMode:
+        case MainMenuAppMode:
             return "AppMode";
-        case ServoSelection:
+        case MainMenuServoSelection:
             return "Servo Selection";
     }
 
@@ -389,22 +417,22 @@ String Navigation::translateServoEnumToString(ServoEnum servoEnum) {
 
 void Navigation::displayMainMenuLed(MainMenuEnum mainMenuState) {
     switch (mainMenuState) {
-        case Calibration:
+        case MainMenuCalibration:
             led.setColorGreen();
             break;
-        case Move:
+        case MainMenuMove:
             led.setColorRed();
             break;
-        case MoveSmoothly:
+        case MainMenuMoveSmoothly:
             led.setColorPurple();
             break;
-        case AppMode:
+        case MainMenuAppMode:
             led.setColorBlue();
             break;
-        case ServoSelection:
+        case MainMenuServoSelection:
             led.setColorYellow();
             break;
-        case None:
+        case MainMenuNone:
         default:
             led.setColorWhite();
             break;

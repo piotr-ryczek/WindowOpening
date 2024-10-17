@@ -3,6 +3,6 @@
 
 enum AppModeEnum { Auto, Manual };
 
-extern AppModeEnum appMode;
+extern AppModeEnum AppMode;
 
 #endif
