@@ -140,13 +140,19 @@ void Navigation::handleForward() {
                     break;
                 }
 
-                case MainMenuMove: {
+                case MainMenuMove:
+                case MainMenuMoveBothServos: {
                     // Nothing
                     break;
                 }
 
                 case MainMenuMoveSmoothly: {
                     this->moveServoSmoothlyTo(); // Set new target
+                    break;
+                }
+
+                case MainMenuMoveBothServosSmoothly: {
+                    this->moveBothServoSmoothlyTo(); // Set new target
                     break;
                 }
             }   
@@ -263,6 +269,16 @@ void Navigation::handleMove() {
     selectedServo->moveTo(servoValue);
 }
 
+void Navigation::handleMoveBothServos() {
+    uint16_t value = getPotentiometerValue();
+    uint8_t servoValue = translateAnalogTo100Range(value);
+
+    Serial.println(servoValue);
+
+    servoPullOpen.moveTo(servoValue);
+    servoPullClose.moveTo(servoValue);
+}
+
 void Navigation::handleServoSelection() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoSelectionValue = translateAnalogTo100Range(value);
@@ -279,13 +295,6 @@ void Navigation::handleAppModeSelection() {
     temporaryAppMode = findAppModeSelection(appModeSelectionValue);
 
     Serial.println(translateAppModeEnumToString(temporaryAppMode));
-}
-
-void Navigation::handleMoveSmoothlySelection() {
-    // uint16_t value = getPotentiometerValue();
-    // uint8_t servoValue = translateAnalogTo100Range(value);
-
-    // Serial.println(servoValue);
 }
 
 void Navigation::confirmServoSelection() {
@@ -327,6 +336,18 @@ void Navigation::moveServoSmoothlyTo() {
 
     selectedServo->setMovingSmoothlyTarget(servoPosition);
 }
+
+void Navigation::moveBothServoSmoothlyTo() {
+    uint16_t value = getPotentiometerValue();
+    uint8_t servoPosition = translateAnalogTo100Range(value); // 0 - 100
+
+    Serial.println(servoPosition);
+
+    // No delay between movement beginning
+    servoPullOpen.setMovingSmoothlyTarget(servoPosition);
+    servoPullClose.setMovingSmoothlyTarget(servoPosition);
+}
+
 
 String Navigation::translateAppModeEnumToString(AppModeEnum appMode) {
     switch (appMode) {

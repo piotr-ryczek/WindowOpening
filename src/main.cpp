@@ -30,9 +30,6 @@
  * Further next:
  * - Include pollution data in PID Controller
  * - Include forecasting temperature in PID Controller
- * 
- * Cleanup:
- * - Passing by reference/pointer
  */
 
 #define EEPROM_SIZE 64
@@ -159,9 +156,9 @@ void servosSmoothMovementTask(void *param) {
             servoPullOpenWrapper.moveSmoothly();
         }
 
-        // if (servoPullCloseWrapper.isMovingSmoothly) {
-        //     servoPullCloseWrapper.moveSmoothly();
-        // }
+        if (servoPullCloseWrapper.isMovingSmoothly) {
+            servoPullCloseWrapper.moveSmoothly();
+        }
 
         vTaskDelay(MOVE_SMOOTHLY_MILISECONDS_INTERVAL / portTICK_PERIOD_MS);
     }
@@ -230,8 +227,6 @@ void wifiConnectionTask(void *param) {
     }
 }
 
-
-
 void setup() {
     Serial.begin(115200);
 
@@ -257,7 +252,7 @@ void setup() {
     exitButton.attachButtonPressCallback(handleExitButtonPress);
 
     servoPullOpenWrapper.initialize(SERVO_PULL_OPEN_PWM_TIMER_INDEX);
-    // servoPullCloseWrapper.initialize(SERVO_PULL_CLOSE_PWM_TIMER_INDEX);
+    servoPullCloseWrapper.initialize(SERVO_PULL_CLOSE_PWM_TIMER_INDEX);
 
     xTaskCreate(navigationTask, "NavigationTask", 2048, NULL, 1, &NavigationTask);
     xTaskCreate(warningsTask, "WarningsTask", 2048, NULL, 2, &WarningsTask);
@@ -281,8 +276,8 @@ void loop() {
         case MainMenuMove:
             navigation.handleMove();
             break;
-        case MainMenuMoveSmoothly:
-            navigation.handleMoveSmoothlySelection();
+        case MainMenuMoveBothServos:
+            navigation.handleMoveBothServos();
             break;
         case MainMenuAppMode:
             navigation.handleAppModeSelection();
