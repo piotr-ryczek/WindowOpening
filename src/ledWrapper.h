@@ -23,10 +23,12 @@ class LedWrapper {
         void setNoColor();
         void setColorWhite();
         void setColorRed();
+        void setColorLightRed();
         void setColorBlue();
         void setColorGreen();
         void setColorYellow();
         void setColorPurple();
+        void setColorLightPurple();
         void setColorLightBlue();
 };
 

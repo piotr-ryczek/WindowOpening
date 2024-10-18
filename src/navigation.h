@@ -65,7 +65,7 @@ class Navigation {
         void activateMenuChoosing();
         void deactivateMenuChoosing();
 
-        void assignRangesForMainMenu(vector<MainMenuEnum>);
+        void assignRangesForMainMenu(const vector<MainMenuEnum>&);
 
         // Find
         MainMenuEnum findMenuSelection(uint8_t position);

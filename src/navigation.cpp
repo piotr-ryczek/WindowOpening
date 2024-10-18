@@ -48,57 +48,22 @@ Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, Serv
     };
 }
 
-// this->mainMenuPositions = {
-//         MainMenuPosition{
-//             name: MainMenuCalibration,
-//             from: 0,
-//             to: 20
-//         },
-//         MainMenuPosition{
-//             name: MainMenuMove,
-//             from: 20,
-//             to: 40
-//         },
-//         MainMenuPosition{
-//             name: MainMenuMoveBothServos,
-//             from: 20,
-//             to: 40
-//         },
-//         MainMenuPosition{
-//             name: MainMenuMoveSmoothly,
-//             from: 40,
-//             to: 60
-//         },
-//         MainMenuPosition{
-//             name: MainMenuMoveBothServosSmoothly,
-//             from: 40,
-//             to: 60
-//         },
-//         MainMenuPosition{
-//             name: MainMenuServoSelection,
-//             from: 60,
-//             to: 80
-//         },
-//         MainMenuPosition{
-//             name: MainMenuAppMode,
-//             from: 80,
-//             to: 100
-//         }
-//     };
-
-void Navigation::assignRangesForMainMenu(vector<MainMenuEnum> positions) {
+void Navigation::assignRangesForMainMenu(const vector<MainMenuEnum>& positions) {
     if (positions.empty()) {
         throw std::runtime_error("Position cannot be empty");
     }
 
-    int step = 100 / positions.size();
+    int step = 100 / positions.size(); 
 
     int index = 0;
     for (auto& position : positions) {
+        uint16_t from = index == 0 ? 0 : ceil(index * step);
+        uint16_t to = index == positions.size() - 1 ? 100 : ceil((index + 1) * step) - 1;
+
         this->mainMenuPositions.push_back(MainMenuPosition{
             name: position,
-            from: ceil(index * step),
-            to: ceil((index + 1) * step),
+            from: from,
+            to: to,
         });
 
         index++;
@@ -423,8 +388,14 @@ void Navigation::displayMainMenuLed(MainMenuEnum mainMenuState) {
         case MainMenuMove:
             led.setColorRed();
             break;
+        case MainMenuMoveBothServos:
+            led.setColorLightRed();
+            break;
         case MainMenuMoveSmoothly:
             led.setColorPurple();
+            break;
+        case MainMenuMoveBothServosSmoothly:
+            led.setColorLightPurple();
             break;
         case MainMenuAppMode:
             led.setColorBlue();

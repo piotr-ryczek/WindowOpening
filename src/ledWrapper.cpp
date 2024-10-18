@@ -38,6 +38,10 @@ void LedWrapper::setColorRed() {
     setColor(255, 0, 0);
 }
 
+void LedWrapper::setColorLightRed() {
+    setColor(255, 122, 122);
+}
+
 void LedWrapper::setColorBlue() {
     setColor(0, 0, 255);
 }
@@ -52,6 +56,10 @@ void LedWrapper::setColorYellow() {
 
 void LedWrapper::setColorPurple() {
     setColor(255, 0, 255);
+}
+
+void LedWrapper::setColorLightPurple() {
+    setColor(255, 122, 255);
 }
 
 void LedWrapper::setColorLightBlue() {
