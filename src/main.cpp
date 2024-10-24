@@ -21,6 +21,7 @@
 #include <secrets.h>
 #include <pidController.h>
 #include <logs.h>
+#include <weatherLogs.h>
 
 /**
  * Next:
@@ -28,8 +29,7 @@
  * - LCD Screen implementation
  * 
  * Further next:
- * - Include pollution data in PID Controller
- * - Include forecasting temperature in PID Controller
+ * - WebApp to aggregate data
  */
 
 #define EEPROM_SIZE 64
@@ -193,14 +193,14 @@ void windowOpeningCalculationTask(void *param) {
 
 void weatherForecastTask(void *param) {
     while (true) {
+        
         auto weatherItems = weatherForecast.fetchData();
-        backgroundApp.checkForWeatherWarning(weatherItems);
+        WeatherItem weatherItem = weatherItems.front();
+        backgroundApp.checkForWeatherWarning(weatherItems);        
 
         auto airPollutionData = airPollution.fetchData();
-        Serial.println(airPollutionData.pm10);
-        Serial.println(airPollutionData.pm10Date);
-        Serial.println(airPollutionData.pm25);
-        Serial.println(airPollutionData.pm25Date);
+
+        addWeatherLog(weatherItem.temperature, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
 
         vTaskDelay(1000 * 60 * 60 / portTICK_PERIOD_MS); // Once per hour
     }

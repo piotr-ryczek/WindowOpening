@@ -7,7 +7,7 @@ void addLog(double temperature, int windowOpening) {
 
     logs.push_back(newLog);
 
-    if (logs.size() >= MAX_LOGS) {
+    if (logs.size() > MAX_LOGS) {
         logs.erase(logs.begin());
     }
 }

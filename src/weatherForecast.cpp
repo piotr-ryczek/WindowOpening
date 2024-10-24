@@ -41,10 +41,10 @@ vector<WeatherItem> WeatherForecast::fetchData() {
         return parsedData;
     }
 
-    String payload = httpClient.getString();
+    String response = httpClient.getString();
 
     JsonDocument doc;
-    deserializeJson(doc, payload);
+    deserializeJson(doc, response);
 
     for (const auto& item: doc["list"].as<JsonArray>()) {
         float temperature = item["main"]["temp"];

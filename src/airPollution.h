@@ -5,14 +5,14 @@
 #include <HTTPClient.h>
 
 struct AirPollutionItem {
-    float pm25;
+    double pm25; // Max norm: 15
     String pm25Date;
-    float pm10;
+    double pm10; // Max norm: 45
     String pm10Date;
 };
 
 struct SensorItem {
-    float pollutionValue;
+    double pollutionValue;
     String date;
 };
 

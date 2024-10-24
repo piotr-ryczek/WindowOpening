@@ -30,6 +30,9 @@ String getCurrentTime() {
     return String(buffer);
 }
 
+/**
+ * How many hours ahead from now is provided date
+ */
 float calculateHoursAhead(String dateToCompare) {
     String currentTime = getCurrentTime();
 

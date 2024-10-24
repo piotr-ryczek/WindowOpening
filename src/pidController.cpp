@@ -1,13 +1,23 @@
 #include <iostream>
 #include <vector>
-
-#include "pidController.h"
-#include "logs.h"
+#include <pidController.h>
+#include <logs.h>
+#include <weatherLogs.h>
 
 using namespace std;
 using namespace PIDController;
 
 namespace PIDController {
+    const double WEATHER_LOG_NOT_OLDER_THAN_HOURS = 3;
+
+    const double PM_25_NORM = 15;
+    const double PM_10_NORM = 45;
+    const double PM_25_WEIGHT = 4; // PM2.5 is more harmful for health so we take it into account more harshly
+    const double PM_10_WEIGHT = 1;
+
+    const double MAX_OUTSIDE_TEMPERATURE_DIFF_FROM_OPTIMAL = 45; // If Optimal 22' -> Outisde MAX will be -23' (so then window delta will be OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD)
+    const double OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD = -80;
+
     const double OPTIMAL_TEMPERATURE = 22;
     const double P_TERM_POSITIVE = 25;
     const double P_TERM_NEGATIVE = 15;
@@ -72,6 +82,32 @@ namespace PIDController {
         return openingTermValue;
     }
 
+    /**
+     * Provided amount to be deducted from final result
+     */
+    double calculateAirPollutionTermValue(double pm25, double pm10) {
+        double pm25NormPropotion = pm25 / PM_25_NORM;
+        double pm10NormPropotion = pm10 / PM_10_NORM;
+
+        double accomulatedPropotion = (pm25NormPropotion * PM_25_WEIGHT + pm10NormPropotion * PM_10_WEIGHT) / (PM_25_WEIGHT + PM_10_WEIGHT);
+
+        double result = (accomulatedPropotion * accomulatedPropotion) - 1;
+
+        return result > 0 ? result : 0;
+    }
+
+    double calculateOutsideTemperatureTermValue(double outsideTemperature) {
+        if (outsideTemperature >= OPTIMAL_TEMPERATURE) {
+            return 100; // Increase by 100 if outside temperature is equal or higher than optimal one
+        }
+
+        double diffFromOptimal = abs(OPTIMAL_TEMPERATURE - outsideTemperature);
+
+        double delta = (OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD * diffFromOptimal) / MAX_OUTSIDE_TEMPERATURE_DIFF_FROM_OPTIMAL;
+
+        return delta;
+    }
+
     int limitFromExtremes(int opening) {
         if (opening < 0) {
             return 0;
@@ -98,6 +134,16 @@ namespace PIDController {
             integralTermValue +
             derivativeTermValue + 
             openingTermValue;
+
+        WeatherLog* lastWeatherLog = getLastWeatherLogNotTooOld(WEATHER_LOG_NOT_OLDER_THAN_HOURS);
+
+        if (lastWeatherLog != nullptr) {
+            double outsideTemperatureTermValue = calculateOutsideTemperatureTermValue(lastWeatherLog->outsideTemperature);
+            double airPollutionTermDeductValue = calculateAirPollutionTermValue(lastWeatherLog->pm25, lastWeatherLog->pm10);
+
+            newOpeningDiff += outsideTemperatureTermValue;
+            newOpeningDiff -= airPollutionTermDeductValue; // Air Polution provides positive number as it can only acts as negative factor (when Air is clean then factor does not matter)
+        }
 
         // Avoid changing window opening if change from current one is less than provided threshold
         if (abs(newOpeningDiff) < CHANGE_DIFF_THRESHOLD) {
