@@ -1,5 +1,7 @@
 #include <logs.h>
 
+vector<Log> logs;
+
 void addLog(double temperature, int windowOpening) {
     Log newLog;
     newLog.temperature = temperature;
