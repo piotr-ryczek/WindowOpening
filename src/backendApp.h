@@ -23,13 +23,26 @@ struct BackendAppLogConfig {
     double changeDiffThreshold;
 };
 
+
+struct BackendAppLogPartialData {
+    double proportionalTermValue;
+    double integralTermValue;
+    double derivativeTermValue;
+    double openingTermValue;
+    double* outsideTemperatureTermValue; // Optional
+    double* airPollutionTermValue; // Optional
+};
+
 struct BackendAppLog {
     int windowOpening;
+    int deltaTemporaryWindowOpening; // Before taking into account change threshold
+    int deltaFinalWindowOpening;
     double insideTemperature;
     double* outsideTemperature; // Optional
     double* pm25; // Optional
     double* pm10; // Optional
     BackendAppLogConfig config;
+    BackendAppLogPartialData partialData;
 };
 
 class BackendApp {

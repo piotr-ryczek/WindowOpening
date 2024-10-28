@@ -93,7 +93,7 @@ namespace PIDController {
 
         double result = (accomulatedPropotion * accomulatedPropotion) - 1;
 
-        return result > 0 ? result : 0;
+        return result > 0 ? -result : 0; // Returning negative value as air pollution can be only negatively percepted factor
     }
 
     double calculateOutsideTemperatureTermValue(double outsideTemperature) {
@@ -120,7 +120,37 @@ namespace PIDController {
         return opening;
     }
 
-    int calculateWindowOpening(double newTemperature) {
+    void attachConfigData(BackendAppLog& backendAppLog) {
+        backendAppLog.config.weatherLogNotOlderThanHours = WEATHER_LOG_NOT_OLDER_THAN_HOURS;
+        backendAppLog.config.pm25Norm = PM_25_NORM;
+        backendAppLog.config.pm10Norm = PM_10_NORM;
+        backendAppLog.config.pm25Weight = PM_25_WEIGHT;
+        backendAppLog.config.pm10Weight = PM_10_WEIGHT;
+        backendAppLog.config.maxOutsideTemperatureDiffFromOptimal = MAX_OUTSIDE_TEMPERATURE_DIFF_FROM_OPTIMAL;
+        backendAppLog.config.outsideTemperatureClosingThreshold = OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD;
+        backendAppLog.config.optimalTemperature = OPTIMAL_TEMPERATURE;
+        backendAppLog.config.pTermPositive = P_TERM_POSITIVE;
+        backendAppLog.config.pTermNegative = P_TERM_NEGATIVE;
+        backendAppLog.config.dTermPositive = D_TERM_POSITIVE;
+        backendAppLog.config.dTermNegative = D_TERM_NEGATIVE;
+        backendAppLog.config.oTermPositive = O_TERM_POSITIVE;
+        backendAppLog.config.oTermNegative = O_TERM_NEGATIVE;
+        backendAppLog.config.iTerm = I_TERM;
+        backendAppLog.config.openingTermPositiveTemperatureIncrease = OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE;
+        backendAppLog.config.changeDiffThreshold = CHANGE_DIFF_THRESHOLD;
+    }
+
+    tuple<int, BackendAppLog> calculateWindowOpening(double newTemperature) {
+        // BackendApp Log
+        BackendAppLog backendAppLog;
+        backendAppLog.insideTemperature = newTemperature;
+
+        backendAppLog.outsideTemperature = nullptr;
+        backendAppLog.pm25 = nullptr;
+        backendAppLog.pm10 = nullptr;
+
+        attachConfigData(backendAppLog);
+
         // Retrieve last log to compare
         Log lastLog = logs.back();
 
@@ -129,6 +159,14 @@ namespace PIDController {
         double integralTermValue = calculateIntegralTermValue(newTemperature); // Reacting to difference accumulated in time (last 10 logs)
         double derivativeTermValue = calculateDerivativeTermValue(newTemperature); // Reacting to quickness of change
         double openingTermValue = calculateOpeningTermValue(newTemperature); // Boost opening if temperature above Optimal; or a bit if negative (below optimal) close to Optimal
+
+        // BackendApp Log
+        backendAppLog.partialData.proportionalTermValue = proportionalTermValue;
+        backendAppLog.partialData.integralTermValue = integralTermValue;
+        backendAppLog.partialData.derivativeTermValue = derivativeTermValue;
+        backendAppLog.partialData.openingTermValue = openingTermValue;
+        backendAppLog.partialData.outsideTemperatureTermValue = nullptr;
+        backendAppLog.partialData.airPollutionTermValue = nullptr;
 
         double newOpeningDiff = proportionalTermValue +
             integralTermValue +
@@ -139,22 +177,39 @@ namespace PIDController {
 
         if (lastWeatherLog != nullptr) {
             double outsideTemperatureTermValue = calculateOutsideTemperatureTermValue(lastWeatherLog->outsideTemperature);
-            double airPollutionTermDeductValue = calculateAirPollutionTermValue(lastWeatherLog->pm25, lastWeatherLog->pm10);
+            double airPollutionTermValue = calculateAirPollutionTermValue(lastWeatherLog->pm25, lastWeatherLog->pm10);
 
             newOpeningDiff += outsideTemperatureTermValue;
-            newOpeningDiff -= airPollutionTermDeductValue; // Air Polution provides positive number as it can only acts as negative factor (when Air is clean then factor does not matter)
+            newOpeningDiff += airPollutionTermValue;
+
+            // BackendApp Log
+            backendAppLog.partialData.outsideTemperatureTermValue = &outsideTemperatureTermValue;
+            backendAppLog.partialData.airPollutionTermValue = &airPollutionTermValue;
+
+            backendAppLog.outsideTemperature = &lastWeatherLog->outsideTemperature;
+            backendAppLog.pm25 = &lastWeatherLog->pm25;
+            backendAppLog.pm10 = &lastWeatherLog->pm10;
         }
+
+        // BackendApp Log
+        backendAppLog.deltaTemporaryWindowOpening = newOpeningDiff;
 
         // Avoid changing window opening if change from current one is less than provided threshold
         if (abs(newOpeningDiff) < CHANGE_DIFF_THRESHOLD) {
             newOpeningDiff = 0;
         }
 
+        // BackendApp Log
+        backendAppLog.deltaFinalWindowOpening = newOpeningDiff;
+
         int newWindowOpening = limitFromExtremes(lastLog.windowOpening + newOpeningDiff);
+
+        // BackendApp Log
+        backendAppLog.windowOpening = newWindowOpening;
         
         // Add new log to history
         addLog(newTemperature, newWindowOpening);
 
-        return newWindowOpening;
+        return make_tuple(newWindowOpening, backendAppLog);
     }
 }

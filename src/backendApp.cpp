@@ -13,8 +13,11 @@ void BackendApp::saveLogToApp(BackendAppLog logData) {
 
   JsonDocument doc; // Should be better adjusted
 
+  // Main data
   doc["insideTemperature"] = logData.insideTemperature;
   doc["windowOpening"] = logData.windowOpening;
+  doc["deltaTemporaryWindowOpening"] = logData.deltaTemporaryWindowOpening;
+  doc["deltaFinalWindowOpening"] = logData.deltaFinalWindowOpening;
 
   if (logData.outsideTemperature != nullptr) {
     doc["outsideTemperature"] = *logData.outsideTemperature;
@@ -28,6 +31,7 @@ void BackendApp::saveLogToApp(BackendAppLog logData) {
     doc["pm10"] = *logData.pm10;
   }
 
+  // Config
   doc["config"]["weatherLogNotOlderThanHours"] = logData.config.weatherLogNotOlderThanHours;
   doc["config"]["pm25Norm"] = logData.config.pm25Norm;
   doc["config"]["pm10Norm"] = logData.config.pm10Norm;
@@ -46,6 +50,21 @@ void BackendApp::saveLogToApp(BackendAppLog logData) {
   doc["config"]["openingTermPositiveTemperatureIncrease"] = logData.config.openingTermPositiveTemperatureIncrease;
   doc["config"]["changeDiffThreshold"] = logData.config.changeDiffThreshold;
 
+  // Partial Data
+  doc["partialData"]["proportionalTermValue"] = logData.partialData.proportionalTermValue;
+  doc["partialData"]["integralTermValue"] = logData.partialData.integralTermValue;
+  doc["partialData"]["derivativeTermValue"] = logData.partialData.derivativeTermValue;
+  doc["partialData"]["openingTermValue"] = logData.partialData.openingTermValue;
+
+  if (logData.partialData.outsideTemperatureTermValue != nullptr) {
+    doc["partialData"]["outsideTemperatureTermValue"] = *logData.partialData.outsideTemperatureTermValue;
+  }
+  
+  if (logData.partialData.airPollutionTermValue != nullptr) {
+    doc["partialData"]["airPollutionTermValue"] = *logData.partialData.airPollutionTermValue;
+  }
+  
+
   String payload;
   serializeJson(doc, payload);
 
@@ -57,5 +76,7 @@ void BackendApp::saveLogToApp(BackendAppLog logData) {
 
   if (httpCode != 200) {
     Serial.println("BackendApp didn't respond with 200");
+  } else {
+    Serial.println("BackendApp retrieved log data");
   }
 }

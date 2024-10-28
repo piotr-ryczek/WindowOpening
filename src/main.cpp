@@ -22,6 +22,13 @@
 #include <pidController.h>
 #include <logs.h>
 #include <weatherLogs.h>
+#include <backendApp.h>
+
+/**
+ * How to simulate calculations:
+ * AppModeEnum AppMode = Manual; -> Auto
+ * float currentTemperature = bme.readTemperature(); -> hardcode temperature
+ */
 
 /**
  * Next:
@@ -117,6 +124,7 @@ ButtonHandler enterButton(ENTER_BUTTON_GPIO);
 ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 
 BackgroundApp backgroundApp(ledWrapper);
+BackendApp backendApp(httpClient);
 
 WeatherForecast weatherForecast(httpClient, WEATHER_FORECAST_API_URL, WEATHER_FORECAST_API_KEY, LOCATION_LAT, LOCATION_LON);
 AirPollution airPollution(httpClient, AIR_POLLUTION_SENSOR_API_URL, AIR_POLLUTION_SENSOR_PM_25_ID, AIR_POLLUTION_SENSOR_PM_10_ID);
@@ -130,6 +138,10 @@ void handleEnterButtonPress() {
 void handleExitButtonPress() {
     navigation.handleBackward();
 };
+
+void handleWindowOpeningCalculation() {
+
+}
 
 void navigationTask(void *param) {
     while (true) {
@@ -168,12 +180,15 @@ void windowOpeningCalculationTask(void *param) {
     while (true) {
         if (AppMode == Auto) {
             float currentTemperature = bme.readTemperature();
-            int newWindowOpening = PIDController::calculateWindowOpening(currentTemperature);
+            auto [newWindowOpening, backendAppLog] = PIDController::calculateWindowOpening(currentTemperature);
+
+            // Save to Backend
+            backendApp.saveLogToApp(backendAppLog);
 
             Log lastLog = logs.back();
 
             if (newWindowOpening != lastLog.windowOpening) {
-                boolean isWindowOpening = newWindowOpening > lastLog.windowOpening;
+                boolean isWindowOpening = newWindowOpening > lastLog.windowOpening; // Closing or Opening
 
                 if (isWindowOpening) {
                     servoPullCloseWrapper.setMovingSmoothlyTarget(newWindowOpening);
@@ -185,15 +200,18 @@ void windowOpeningCalculationTask(void *param) {
                     servoPullCloseWrapper.setMovingSmoothlyTarget(newWindowOpening);
                 }
             }
+
+            // By default every 5 minutes
+            vTaskDelay(WINDOW_OPENING_CALCULATION_INTERVAL / portTICK_PERIOD_MS);
         }
 
-        vTaskDelay(WINDOW_OPENING_CALCULATION_INTERVAL / portTICK_PERIOD_MS);
+        // Checking if state has changed every second
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
 void weatherForecastTask(void *param) {
     while (true) {
-        
         auto weatherItems = weatherForecast.fetchData();
         WeatherItem weatherItem = weatherItems.front();
         backgroundApp.checkForWeatherWarning(weatherItems);        
