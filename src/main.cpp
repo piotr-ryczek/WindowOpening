@@ -9,13 +9,15 @@
 #include <Adafruit_BME280.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+
+#include <gpios.h>
+#include <memoryData.h>
 #include <buttonHandler.h>
 #include <navigation.h>
 #include <servoWrapper.h>
 #include <ledWrapper.h>
 #include <config.h>
 #include <backgroundApp.h>
-#include <memoryValue.h>
 #include <weatherForecast.h>
 #include <airPollution.h>
 #include <secrets.h>
@@ -32,6 +34,8 @@
 
 /**
  * Next:
+ * - Bluetooth Integration
+ * - Save into memory some of the Config
  * - Speaker implementation for Alerts
  * - LCD Screen implementation
  * 
@@ -44,38 +48,13 @@
 
 using namespace std;
 
+bool isWifiConnected = false;
+
 const int GMT_OFFSET_SEC = 3600;
 const int DAYLIGHT_OFFSET_SEC = 3600;
 const char* NTP_SERVER_URL = "pool.ntp.org";
 
-const int LED_RED_PWM_TIMER_INDEX = 0;
-const int LED_GREEN_PWM_TIMER_INDEX = 1;
-const int LED_BLUE_PWM_TIMER_INDEX = 2;
-
-const int SERVO_PULL_OPEN_PWM_TIMER_INDEX = 3;
-const int SERVO_PULL_CLOSE_PWM_TIMER_INDEX = 4;
-
-const byte ENTER_BUTTON_GPIO = 14;
-const byte EXIT_BUTTON_GPIO = 12;
-const byte POTENTIOMETER_GPIO = 34;
-const byte SERVO_PULL_OPEN_GPIO = 21;
-const byte SERVO_PULL_CLOSE_GPIO = 22;
-
-const byte LED_RED_GPIO = 25;
-const byte LED_GREEN_GPIO = 26;
-const byte LED_BLUE_GPIO = 27;
-
-const int SERVO_PULL_OPEN_CALIBRATION_MIN_SET_ADDRESS = 0;
-const int SERVO_PULL_OPEN_CALIBRATION_MIN_VALUE_ADDRESS = 1;
-
-const int SERVO_PULL_OPEN_CALIBRATION_MAX_SET_ADDRESS = 2;
-const int SERVO_PULL_OPEN_CALIBRATION_MAX_VALUE_ADDRESS = 3;
-
-const int SERVO_PULL_CLOSE_CALIBRATION_MIN_SET_ADDRESS = 4;
-const int SERVO_PULL_CLOSE_CALIBRATION_MIN_VALUE_ADDRESS = 5;
-
-const int SERVO_PULL_CLOSE_CALIBRATION_MAX_SET_ADDRESS = 6;
-const int SERVO_PULL_CLOSE_CALIBRATION_MAX_VALUE_ADDRESS = 7;
+TwoWire I2C_BME_280 = TwoWire(0);
 
 const int MOVE_SMOOTHLY_MILISECONDS_INTERVAL = 40;
 const int WINDOW_OPENING_CALCULATION_INTERVAL = 1000 * 60 * 5; // Every 5 minutes
@@ -98,17 +77,7 @@ TaskHandle_t WeatherConnectionTask;
 TaskHandle_t WeatherForecastTask;
 TaskHandle_t WindowOpeningCalculationTask;
 
-// Pull Open Calibration Min
-MemoryValue servoPullOpenCalibrationMinMemory(SERVO_PULL_OPEN_CALIBRATION_MIN_SET_ADDRESS, SERVO_PULL_OPEN_CALIBRATION_MIN_VALUE_ADDRESS);
-
-// Pull Open Calibration  Max
-MemoryValue servoPullOpenCalibrationMaxMemory(SERVO_PULL_OPEN_CALIBRATION_MAX_SET_ADDRESS, SERVO_PULL_OPEN_CALIBRATION_MAX_VALUE_ADDRESS);
-
-// Pull Close Calibration Min
-MemoryValue servoPullCloseCalibrationMinMemory(SERVO_PULL_CLOSE_CALIBRATION_MIN_SET_ADDRESS, SERVO_PULL_CLOSE_CALIBRATION_MIN_VALUE_ADDRESS);
-
-// Pull Close Calibration Max
-MemoryValue servoPullCloseCalibrationMaxMemory(SERVO_PULL_CLOSE_CALIBRATION_MAX_SET_ADDRESS, SERVO_PULL_CLOSE_CALIBRATION_MAX_VALUE_ADDRESS);
+// Instances
 
 HTTPClient httpClient;
 
@@ -138,10 +107,6 @@ void handleEnterButtonPress() {
 void handleExitButtonPress() {
     navigation.handleBackward();
 };
-
-void handleWindowOpeningCalculation() {
-
-}
 
 void navigationTask(void *param) {
     while (true) {
@@ -183,7 +148,9 @@ void windowOpeningCalculationTask(void *param) {
             auto [newWindowOpening, backendAppLog] = PIDController::calculateWindowOpening(currentTemperature);
 
             // Save to Backend
-            backendApp.saveLogToApp(backendAppLog);
+            if (isWifiConnected) {
+                backendApp.saveLogToApp(backendAppLog);
+            }
 
             Log lastLog = logs.back();
 
@@ -212,13 +179,15 @@ void windowOpeningCalculationTask(void *param) {
 
 void weatherForecastTask(void *param) {
     while (true) {
-        auto weatherItems = weatherForecast.fetchData();
-        WeatherItem weatherItem = weatherItems.front();
-        backgroundApp.checkForWeatherWarning(weatherItems);        
+        if (!isWifiConnected) return;
 
-        auto airPollutionData = airPollution.fetchData();
+        // auto weatherItems = weatherForecast.fetchData();
+        // WeatherItem weatherItem = weatherItems.front();
+        // backgroundApp.checkForWeatherWarning(weatherItems);        
 
-        addWeatherLog(weatherItem.temperature, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
+        // auto airPollutionData = airPollution.fetchData();
+
+        // addWeatherLog(weatherItem.temperature, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
 
         vTaskDelay(1000 * 60 * 60 / portTICK_PERIOD_MS); // Once per hour
     }
@@ -229,13 +198,16 @@ void wifiConnectionTask(void *param) {
         auto wifiStatus = WiFi.status();
         
         if (wifiStatus == WL_CONNECTED) {
+            isWifiConnected = true;
             Serial.println("WiFi Connected");
             configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER_URL); // Synchronize time
             vTaskDelay(5000 / portTICK_PERIOD_MS); // Delay for 5s to give a time to retrieve current time (for first time)
 
             xTaskCreate(weatherForecastTask, "WeatherForecastTask", 16384, NULL, 5, &WeatherForecastTask);
+
             vTaskSuspend(WifiConnectionTask);
         } else {
+            isWifiConnected = false;
             Serial.println("WiFi Connecting");
             Serial.print("WiFi Status:");
             Serial.println(wifiStatus);
@@ -255,12 +227,18 @@ void setup() {
         return;
     }
 
-    if (!bme.begin(BME280_ADDRESS)) {
+    I2C_BME_280.begin(BME_280_SDA_GPIO, BME_280_SCL_GPIO, 100000); 
+
+    if (!bme.begin(BME280_ADDRESS, &I2C_BME_280)) {
         Serial.println("BME280 not working correctly");
         while (1);
     }
 
     delay(100);
+
+    // Init first log (50 will be invalid value probably)
+    float initialTemperature = bme.readTemperature();
+    addLog(initialTemperature, 50);
 
     ledWrapper.initialize();
 
@@ -276,7 +254,7 @@ void setup() {
     xTaskCreate(warningsTask, "WarningsTask", 2048, NULL, 2, &WarningsTask);
     xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 2048, NULL, 3, &ServosSmoothMovementTask);
     xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 4, &WifiConnectionTask);
-    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 2048, NULL, 4, &WindowOpeningCalculationTask); 
+    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 16384, NULL, 4, &WindowOpeningCalculationTask); 
 }
 
 void loop() {

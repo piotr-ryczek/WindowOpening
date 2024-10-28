@@ -10,6 +10,7 @@ class MemoryValue {
 
     public:
         MemoryValue(int setAddress, int valueAddress);
+        MemoryValue(int setAddress, int valueAddress, int defaultValue);
         void setValue(uint8_t value);
         uint8_t readValue();
 

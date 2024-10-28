@@ -3,11 +3,19 @@
 #include <pidController.h>
 #include <logs.h>
 #include <weatherLogs.h>
+#include <memoryData.h>
 
 using namespace std;
 using namespace PIDController;
 
 namespace PIDController {
+
+    // Data saved in memory
+    struct ConfigMetadata {
+        int optimalTemperature;
+    };
+
+    // Not Memory
     const double WEATHER_LOG_NOT_OLDER_THAN_HOURS = 3;
 
     const double PM_25_NORM = 15;
@@ -15,10 +23,9 @@ namespace PIDController {
     const double PM_25_WEIGHT = 4; // PM2.5 is more harmful for health so we take it into account more harshly
     const double PM_10_WEIGHT = 1;
 
-    const double MAX_OUTSIDE_TEMPERATURE_DIFF_FROM_OPTIMAL = 45; // If Optimal 22' -> Outisde MAX will be -23' (so then window delta will be OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD)
+    const double MAX_OUTSIDE_TEMPERATURE_DIFF_FROM_OPTIMAL = 45; // If Optimal 22' -> Outside MAX will be -23' (so then window delta will be OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD)
     const double OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD = -80;
 
-    const double OPTIMAL_TEMPERATURE = 22;
     const double P_TERM_POSITIVE = 25;
     const double P_TERM_NEGATIVE = 15;
     const double D_TERM_POSITIVE = 50;
@@ -36,8 +43,8 @@ namespace PIDController {
 
     // PID
 
-    double calculateProportionalTermValue(double newTemperature) {
-        double temperatureDiffFromOptimal = newTemperature - OPTIMAL_TEMPERATURE;
+    double calculateProportionalTermValue(double newTemperature, ConfigMetadata& configMetadata) {
+        double temperatureDiffFromOptimal = newTemperature - configMetadata.optimalTemperature;
 
         bool ifTemperatureAboveOptimal = temperatureDiffFromOptimal >= 0;
 
@@ -46,10 +53,10 @@ namespace PIDController {
         return temperatureDiffFromOptimal * P_TERM;
     }
 
-    double calculateIntegralTermValue(double newTemperature) {
+    double calculateIntegralTermValue(double newTemperature, ConfigMetadata& configMetadata) {
         double accumulatedDiff = 0;
         for (Log log: logs) {
-            accumulatedDiff += log.temperature - OPTIMAL_TEMPERATURE;
+            accumulatedDiff += log.temperature - configMetadata.optimalTemperature;
         }
 
         return accumulatedDiff * I_TERM;
@@ -67,8 +74,8 @@ namespace PIDController {
     }
 
     // Increasing opening factor if close to OPTIMAL_TEMPERATURE or far above it
-    double calculateOpeningTermValue(double newTemperature) {
-        double temperatureDiffFromOptimal = newTemperature - OPTIMAL_TEMPERATURE;
+    double calculateOpeningTermValue(double newTemperature, ConfigMetadata& configMetadata) {
+        double temperatureDiffFromOptimal = newTemperature - configMetadata.optimalTemperature;
 
         double openingTermValue;
 
@@ -86,22 +93,22 @@ namespace PIDController {
      * Provided amount to be deducted from final result
      */
     double calculateAirPollutionTermValue(double pm25, double pm10) {
-        double pm25NormPropotion = pm25 / PM_25_NORM;
-        double pm10NormPropotion = pm10 / PM_10_NORM;
+        double pm25NormProportion = pm25 / PM_25_NORM;
+        double pm10NormProportion = pm10 / PM_10_NORM;
 
-        double accomulatedPropotion = (pm25NormPropotion * PM_25_WEIGHT + pm10NormPropotion * PM_10_WEIGHT) / (PM_25_WEIGHT + PM_10_WEIGHT);
+        double accumulatedProportion = (pm25NormProportion * PM_25_WEIGHT + pm10NormProportion * PM_10_WEIGHT) / (PM_25_WEIGHT + PM_10_WEIGHT);
 
-        double result = (accomulatedPropotion * accomulatedPropotion) - 1;
+        double result = (accumulatedProportion * accumulatedProportion) - 1;
 
-        return result > 0 ? -result : 0; // Returning negative value as air pollution can be only negatively percepted factor
+        return result > 0 ? -result : 0; // Returning negative value as air pollution can be only negatively percept factor
     }
 
-    double calculateOutsideTemperatureTermValue(double outsideTemperature) {
-        if (outsideTemperature >= OPTIMAL_TEMPERATURE) {
+    double calculateOutsideTemperatureTermValue(double outsideTemperature, ConfigMetadata& configMetadata) {
+        if (outsideTemperature >= configMetadata.optimalTemperature) {
             return 100; // Increase by 100 if outside temperature is equal or higher than optimal one
         }
 
-        double diffFromOptimal = abs(OPTIMAL_TEMPERATURE - outsideTemperature);
+        double diffFromOptimal = abs(configMetadata.optimalTemperature - outsideTemperature);
 
         double delta = (OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD * diffFromOptimal) / MAX_OUTSIDE_TEMPERATURE_DIFF_FROM_OPTIMAL;
 
@@ -120,7 +127,7 @@ namespace PIDController {
         return opening;
     }
 
-    void attachConfigData(BackendAppLog& backendAppLog) {
+    void attachConfigData(BackendAppLog& backendAppLog, ConfigMetadata& configMetadata) {
         backendAppLog.config.weatherLogNotOlderThanHours = WEATHER_LOG_NOT_OLDER_THAN_HOURS;
         backendAppLog.config.pm25Norm = PM_25_NORM;
         backendAppLog.config.pm10Norm = PM_10_NORM;
@@ -128,7 +135,7 @@ namespace PIDController {
         backendAppLog.config.pm10Weight = PM_10_WEIGHT;
         backendAppLog.config.maxOutsideTemperatureDiffFromOptimal = MAX_OUTSIDE_TEMPERATURE_DIFF_FROM_OPTIMAL;
         backendAppLog.config.outsideTemperatureClosingThreshold = OUTSIDE_TEMPERATURE_CLOSING_THRESHOLD;
-        backendAppLog.config.optimalTemperature = OPTIMAL_TEMPERATURE;
+        backendAppLog.config.optimalTemperature = configMetadata.optimalTemperature;
         backendAppLog.config.pTermPositive = P_TERM_POSITIVE;
         backendAppLog.config.pTermNegative = P_TERM_NEGATIVE;
         backendAppLog.config.dTermPositive = D_TERM_POSITIVE;
@@ -141,6 +148,11 @@ namespace PIDController {
     }
 
     tuple<int, BackendAppLog> calculateWindowOpening(double newTemperature) {
+        int optimalTemperature = optimalTemperatureMemory.readValue();
+
+        ConfigMetadata configMetadata;
+        configMetadata.optimalTemperature = optimalTemperature;
+
         // BackendApp Log
         BackendAppLog backendAppLog;
         backendAppLog.insideTemperature = newTemperature;
@@ -149,16 +161,16 @@ namespace PIDController {
         backendAppLog.pm25 = nullptr;
         backendAppLog.pm10 = nullptr;
 
-        attachConfigData(backendAppLog);
+        attachConfigData(backendAppLog, configMetadata);
 
         // Retrieve last log to compare
         Log lastLog = logs.back();
 
         // Calculate all terms values
-        double proportionalTermValue = calculateProportionalTermValue(newTemperature); // Reacting to difference size
-        double integralTermValue = calculateIntegralTermValue(newTemperature); // Reacting to difference accumulated in time (last 10 logs)
+        double proportionalTermValue = calculateProportionalTermValue(newTemperature, configMetadata); // Reacting to difference size
+        double integralTermValue = calculateIntegralTermValue(newTemperature, configMetadata); // Reacting to difference accumulated in time (last 10 logs)
         double derivativeTermValue = calculateDerivativeTermValue(newTemperature); // Reacting to quickness of change
-        double openingTermValue = calculateOpeningTermValue(newTemperature); // Boost opening if temperature above Optimal; or a bit if negative (below optimal) close to Optimal
+        double openingTermValue = calculateOpeningTermValue(newTemperature, configMetadata); // Boost opening if temperature above Optimal; or a bit if negative (below optimal) close to Optimal
 
         // BackendApp Log
         backendAppLog.partialData.proportionalTermValue = proportionalTermValue;
@@ -176,7 +188,7 @@ namespace PIDController {
         WeatherLog* lastWeatherLog = getLastWeatherLogNotTooOld(WEATHER_LOG_NOT_OLDER_THAN_HOURS);
 
         if (lastWeatherLog != nullptr) {
-            double outsideTemperatureTermValue = calculateOutsideTemperatureTermValue(lastWeatherLog->outsideTemperature);
+            double outsideTemperatureTermValue = calculateOutsideTemperatureTermValue(lastWeatherLog->outsideTemperature, configMetadata);
             double airPollutionTermValue = calculateAirPollutionTermValue(lastWeatherLog->pm25, lastWeatherLog->pm10);
 
             newOpeningDiff += outsideTemperatureTermValue;
@@ -210,6 +222,6 @@ namespace PIDController {
         // Add new log to history
         addLog(newTemperature, newWindowOpening);
 
-        return make_tuple(newWindowOpening, backendAppLog);
+        return make_tuple(10, backendAppLog);
     }
 }

@@ -2,6 +2,11 @@
 #include <memoryValue.h>
 
 MemoryValue::MemoryValue(int setAddress, int valueAddress): setAddress(setAddress), valueAddress(valueAddress) {}
+MemoryValue::MemoryValue(int setAddress, int valueAddress, int defaultValue): setAddress(setAddress), valueAddress(valueAddress) {
+    if (!this->isSet()) {
+        this->setValue(defaultValue);
+    }
+}
 
 void MemoryValue::setValue(uint8_t newValue) {
     EEPROM.writeByte(valueAddress, newValue);

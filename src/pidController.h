@@ -5,6 +5,9 @@
 #include <backendApp.h>
 
 namespace PIDController {
+    // Memory
+    const double DEFAULT_OPTIMAL_TEMPERATURE = 22;
+
     std::tuple<int, BackendAppLog> calculateWindowOpening(double newTemperature);
 }
 

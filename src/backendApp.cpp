@@ -6,7 +6,10 @@
 BackendApp::BackendApp(HTTPClient& httpClient): httpClient(httpClient) {}
 
 void BackendApp::saveLogToApp(BackendAppLog logData) {
-  httpClient.begin("http://window-opening.nero12.usermd.net");
+  if (!httpClient.begin("https://window-opening.nero12.usermd.net")) {
+    Serial.println("Failed to connect to BackendApp");
+    return;
+  }
 
   httpClient.addHeader("Content-Type", "application/json");
   httpClient.addHeader("App-Secret", BACKEND_APP_SECRET);
@@ -70,13 +73,16 @@ void BackendApp::saveLogToApp(BackendAppLog logData) {
 
   int httpCode = httpClient.POST(payload);
 
-  if (httpCode == 0) {
+  if (httpCode <= 0) {
+    Serial.println("BackendApp Request failed");
     throw std::runtime_error("BackendApp Request failed");
   }
 
-  if (httpCode != 200) {
-    Serial.println("BackendApp didn't respond with 200");
+  if (httpCode != 201) {
+    Serial.println("BackendApp didn't respond with 201");
   } else {
     Serial.println("BackendApp retrieved log data");
   }
+
+  httpClient.end();
 }
