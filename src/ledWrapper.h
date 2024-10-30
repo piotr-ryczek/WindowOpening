@@ -30,6 +30,7 @@ class LedWrapper {
         void setColorPurple();
         void setColorLightPurple();
         void setColorLightBlue();
+        void setColorOrange();
 };
 
 #endif

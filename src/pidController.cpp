@@ -13,6 +13,7 @@ namespace PIDController {
     // Data saved in memory
     struct ConfigMetadata {
         int optimalTemperature;
+        int changeDiffThreshold;
     };
 
     // Not Memory
@@ -38,8 +39,6 @@ namespace PIDController {
     const double I_TERM = 4;
 
     const double OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE = 5;
-
-    const double CHANGE_DIFF_THRESHOLD = 20; // Don't change opening below this number to avoid to often window manipulation
 
     // PID
 
@@ -144,14 +143,16 @@ namespace PIDController {
         backendAppLog.config.oTermNegative = O_TERM_NEGATIVE;
         backendAppLog.config.iTerm = I_TERM;
         backendAppLog.config.openingTermPositiveTemperatureIncrease = OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE;
-        backendAppLog.config.changeDiffThreshold = CHANGE_DIFF_THRESHOLD;
+        backendAppLog.config.changeDiffThreshold = configMetadata.changeDiffThreshold;
     }
 
     tuple<int, BackendAppLog> calculateWindowOpening(double newTemperature) {
+        // Retrieving information from memory and pass it to other functions for calculations
         int optimalTemperature = optimalTemperatureMemory.readValue();
-
+        int changeDiffThreshold = changeDiffThresholdMemory.readValue();
         ConfigMetadata configMetadata;
         configMetadata.optimalTemperature = optimalTemperature;
+        configMetadata.changeDiffThreshold = changeDiffThreshold;
 
         // BackendApp Log
         BackendAppLog backendAppLog;
@@ -207,7 +208,7 @@ namespace PIDController {
         backendAppLog.deltaTemporaryWindowOpening = newOpeningDiff;
 
         // Avoid changing window opening if change from current one is less than provided threshold
-        if (abs(newOpeningDiff) < CHANGE_DIFF_THRESHOLD) {
+        if (abs(newOpeningDiff) < changeDiffThreshold) {
             newOpeningDiff = 0;
         }
 

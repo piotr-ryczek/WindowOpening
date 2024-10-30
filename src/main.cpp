@@ -179,15 +179,15 @@ void windowOpeningCalculationTask(void *param) {
 
 void weatherForecastTask(void *param) {
     while (true) {
-        if (!isWifiConnected) return;
+        if (!isWifiConnected && !WEATHER_FORECAST_ENABLED) return;
 
-        // auto weatherItems = weatherForecast.fetchData();
-        // WeatherItem weatherItem = weatherItems.front();
-        // backgroundApp.checkForWeatherWarning(weatherItems);        
+        auto weatherItems = weatherForecast.fetchData();
+        WeatherItem weatherItem = weatherItems.front();
+        backgroundApp.checkForWeatherWarning(weatherItems);        
 
-        // auto airPollutionData = airPollution.fetchData();
+        auto airPollutionData = airPollution.fetchData();
 
-        // addWeatherLog(weatherItem.temperature, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
+        addWeatherLog(weatherItem.temperature, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
 
         vTaskDelay(1000 * 60 * 60 / portTICK_PERIOD_MS); // Once per hour
     }
@@ -278,5 +278,16 @@ void loop() {
         case MainMenuAppMode:
             navigation.handleAppModeSelection();
             break;
+        case MainMenuSettings: {
+            if (navigation.selectedSetting == nullptr) {
+                navigation.handleSettingSelection();
+            } else {
+                navigation.handleSetSettingValue();
+            }
+
+            break;
+        }
     }
+
+    delay(20);
 }

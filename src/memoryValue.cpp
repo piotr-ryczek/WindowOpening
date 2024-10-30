@@ -8,7 +8,7 @@ MemoryValue::MemoryValue(int setAddress, int valueAddress, int defaultValue): se
     }
 }
 
-void MemoryValue::setValue(uint8_t newValue) {
+void MemoryValue::setValue(uint16_t newValue) {
     EEPROM.writeByte(valueAddress, newValue);
 
     if (!isSet()) {
@@ -18,7 +18,7 @@ void MemoryValue::setValue(uint8_t newValue) {
     EEPROM.commit();
 }
 
-uint8_t MemoryValue::readValue() {
+uint16_t MemoryValue::readValue() {
     return EEPROM.readByte(valueAddress);
 }
 

@@ -6,6 +6,8 @@
 #include <servoWrapper.h>
 #include <config.h>
 #include <ledWrapper.h>
+#include <memoryValue.h>
+#include <memoryData.h>
 
 using namespace std;
 
@@ -18,10 +20,12 @@ enum MainMenuEnum {
     MainMenuMoveBothServos,
     MainMenuMoveBothServosSmoothly,
     MainMenuAppMode,
-    MainMenuServoSelection
+    MainMenuServoSelection,
+    MainMenuSettings,
 };
 enum CalibrationStepEnum { CalibrationStepMin, CalibrationStepMax };
 enum ServoEnum { ServoPullOpen, ServoPullClose};
+enum SettingEnum { SettingOptimalTemperature, SettingChangeDiffThreshold };
 
 struct MainMenuPosition {
     MainMenuEnum name;
@@ -41,10 +45,26 @@ struct AppModeSelectionPosition {
     uint16_t to;
 };
 
+struct Setting {
+    SettingEnum name;
+    uint16_t valueMin;
+    uint16_t valueMax;
+    MemoryValue* memoryValue;
+};
+
+struct SettingPosition {
+    SettingEnum name;
+    uint16_t from;
+    uint16_t to;
+};
+
+extern vector<Setting> settings;
+
 class Navigation {
     private:
         byte potentiometerGpio;
         vector<MainMenuPosition> mainMenuPositions;
+        vector<SettingPosition> settingSelectionPositions;
         vector<ServoSelectionPosition> servoSelectionPositions;
         vector<AppModeSelectionPosition> appModeSelectionPositions;
         uint16_t mainMenuTemporaryAnalogPosition; // 0 - 4095
@@ -57,8 +77,12 @@ class Navigation {
         ServoWrapper* selectedServo;
         ServoEnum selectedServoEnum;
         ServoEnum temporarySelectedServoEnum;
+        SettingEnum selectedSettingEnum;
+        SettingEnum temporarySelectedSettingEnum;
         AppModeEnum* appMode;
         AppModeEnum temporaryAppMode;
+        uint32_t temporarySettingValue;
+
         void setServoCalibrationMin();
         void setServoCalibrationMax();
 
@@ -66,21 +90,26 @@ class Navigation {
         void deactivateMenuChoosing();
 
         void assignRangesForMainMenu(const vector<MainMenuEnum>&);
+        void assignRangesForSettings(const vector<SettingEnum>&);
 
         // Find
         MainMenuEnum findMenuSelection(uint8_t position);
         ServoEnum findServoSelection(uint8_t position);
         AppModeEnum findAppModeSelection(uint8_t position);
+        SettingEnum findSettingSelection(uint8_t position);
 
         // Translation
         String translateAppMainStateEnumIntoString(AppMainStateEnum appMainState);
         String translateMainMenuStateEnumIntoString(MainMenuEnum mainMenuState);
         String translateServoEnumToString(ServoEnum servoEnum);
         String translateAppModeEnumToString(AppModeEnum appModeEnum);
+        String translateSettingEnumToString(SettingEnum settingEnum);
 
         // Confirmations
         void confirmServoSelection();
         void confirmAppModeSelection();
+        void confirmSettingSelection();
+        void setSettingValue();
 
         // Servo
         void moveServoSmoothlyTo();
@@ -96,6 +125,7 @@ class Navigation {
 
         AppMainStateEnum appMainState;
         MainMenuEnum mainMenuState;
+        Setting* selectedSetting;
 
         bool isMenuSelectionActivated;
 
@@ -108,6 +138,8 @@ class Navigation {
         void handleMoveBothServos();
         void handleServoSelection();
         void handleAppModeSelection();
+        void handleSettingSelection();
+        void handleSetSettingValue();
 };
 
 #endif

@@ -4,5 +4,6 @@
 enum AppModeEnum { Auto, Manual };
 
 extern AppModeEnum AppMode;
+extern const bool WEATHER_FORECAST_ENABLED;
 
 #endif

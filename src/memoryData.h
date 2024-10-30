@@ -44,6 +44,10 @@ const int O_TERM_NEGATIVE_VALUE_ADDRESS = 21;
 const int I_TERM_SET_ADDRESS = 22;
 const int I_TERM_VALUE_ADDRESS = 23;
 
+// Usued
+const int CHANGE_DIFF_THRESHOLD_SET_ADDRESS = 24;
+const int CHANGE_DIFF_THRESHOLD_VALUE_ADDRESS = 25;
+
 
 // MemoryValues
 
@@ -60,5 +64,7 @@ extern MemoryValue servoPullCloseCalibrationMinMemory;
 extern MemoryValue servoPullCloseCalibrationMaxMemory;
 
 extern MemoryValue optimalTemperatureMemory;
+
+extern MemoryValue changeDiffThresholdMemory;
 
 #endif

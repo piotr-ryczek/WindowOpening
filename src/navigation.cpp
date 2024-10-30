@@ -5,6 +5,21 @@
 
 const uint16_t deadPotentiometerMargin = 100; // In range 0-4095
 
+vector<Setting> settings {
+    Setting{
+        name: SettingOptimalTemperature,
+        valueMin: 10,
+        valueMax: 25,
+        memoryValue: &optimalTemperatureMemory,
+    },
+    Setting{
+        name: SettingChangeDiffThreshold,
+        valueMin: 0,
+        valueMax: 100,
+        memoryValue: &changeDiffThresholdMemory,
+    },
+};
+
 Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led) {
     this->appMainState = Sleep;
     this->mainMenuState = MainMenuNone; // Chosen menu
@@ -16,10 +31,14 @@ Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, Serv
     this->selectedServo = &this->servoPullOpen;
     this->selectedServoEnum = ServoPullOpen;
     this->temporarySelectedServoEnum = ServoPullOpen; // Temporary value while rotating potentiometer
+    this->selectedSettingEnum = SettingOptimalTemperature;
+    this->temporarySelectedSettingEnum = SettingOptimalTemperature;
     this->temporaryAppMode = Manual; // Temporary value while rotating potentiometer
     this->appMode = appMode;
+    this->selectedSetting = nullptr;
 
-    this->assignRangesForMainMenu(vector<MainMenuEnum> { MainMenuCalibration, MainMenuMove, MainMenuMoveBothServos, MainMenuMoveSmoothly, MainMenuMoveBothServosSmoothly, MainMenuServoSelection, MainMenuAppMode });
+    this->assignRangesForMainMenu(vector<MainMenuEnum> { MainMenuCalibration, MainMenuMove, MainMenuMoveBothServos, MainMenuMoveSmoothly, MainMenuMoveBothServosSmoothly, MainMenuServoSelection, MainMenuAppMode, MainMenuSettings });
+    this->assignRangesForSettings(vector<SettingEnum> { SettingOptimalTemperature, SettingChangeDiffThreshold });
 
     this->servoSelectionPositions = {
         ServoSelectionPosition{
@@ -61,6 +80,29 @@ void Navigation::assignRangesForMainMenu(const vector<MainMenuEnum>& positions) 
         uint16_t to = index == positions.size() - 1 ? 100 : ceil((index + 1) * step) - 1;
 
         this->mainMenuPositions.push_back(MainMenuPosition{
+            name: position,
+            from: from,
+            to: to,
+        });
+
+        index++;
+    }
+}
+
+// Duplication from MainMenu ranges
+void Navigation::assignRangesForSettings(const vector<SettingEnum>& positions) {
+    if (positions.empty()) {
+        throw std::runtime_error("Position cannot be empty");
+    }
+
+    int step = 100 / positions.size(); 
+
+    int index = 0;
+    for (auto& position : positions) {
+        uint16_t from = index == 0 ? 0 : ceil(index * step);
+        uint16_t to = index == positions.size() - 1 ? 100 : ceil((index + 1) * step) - 1;
+
+        this->settingSelectionPositions.push_back(SettingPosition{
             name: position,
             from: from,
             to: to,
@@ -155,6 +197,16 @@ void Navigation::handleForward() {
                     this->moveBothServoSmoothlyTo(); // Set new target
                     break;
                 }
+
+                case MainMenuSettings: {
+                    if (this->selectedSetting == nullptr) {
+                        this->confirmSettingSelection();
+                    } else {
+                        this->setSettingValue();
+                    }
+                    
+                    break;
+                }
             }   
         }
     }
@@ -180,6 +232,17 @@ void Navigation::handleBackward() {
                 case MainMenuServoSelection: {
                     mainMenuState = MainMenuNone;
                     this->activateMenuChoosing();
+
+                    break;
+                }
+
+                case MainMenuSettings: {
+                    if (this->selectedSetting == nullptr) {
+                        mainMenuState = MainMenuNone;
+                        this->activateMenuChoosing();
+                    } else {
+                        this->selectedSetting = nullptr;
+                    }
 
                     break;
                 }
@@ -227,6 +290,17 @@ AppModeEnum Navigation::findAppModeSelection(uint8_t position) {
 
     return Manual;
 }
+
+SettingEnum Navigation::findSettingSelection(uint8_t position) {
+    for (const auto& settingSelectionPosition : settingSelectionPositions) {
+        if (position >= settingSelectionPosition.from && position <= settingSelectionPosition.to) {
+            return settingSelectionPosition.name;
+        }
+    }
+
+    return SettingOptimalTemperature;
+}
+
 
 void Navigation::handleMenuSelection() {
     uint16_t analogValue = analogRead(this->potentiometerGpio);
@@ -297,6 +371,24 @@ void Navigation::handleAppModeSelection() {
     Serial.println(translateAppModeEnumToString(temporaryAppMode));
 }
 
+void Navigation::handleSettingSelection() {
+    uint16_t value = getPotentiometerValue();
+    uint8_t settingSelectionValue = translateAnalogTo100Range(value);
+
+    temporarySelectedSettingEnum = findSettingSelection(settingSelectionValue);
+
+    Serial.println(translateSettingEnumToString(temporarySelectedSettingEnum));
+}
+
+void Navigation::handleSetSettingValue() {
+    if (this->selectedSetting == nullptr) return;
+
+    uint16_t value = getPotentiometerValue();
+    uint32_t settingSelectionValue = translateAnalogToGivenRange(value, this->selectedSetting->valueMin, this->selectedSetting->valueMax);
+
+    this->temporarySettingValue = settingSelectionValue;
+}
+
 void Navigation::confirmServoSelection() {
     selectedServoEnum = temporarySelectedServoEnum;
 
@@ -312,6 +404,32 @@ void Navigation::confirmServoSelection() {
 
 void Navigation::confirmAppModeSelection() {
     this->appMode = &temporaryAppMode;
+}
+
+void Navigation::confirmSettingSelection() {
+    this->selectedSettingEnum = this->temporarySelectedSettingEnum;
+
+    auto it = find_if(settings.begin(), settings.end(), [this](Setting setting) {
+        return setting.name == this->selectedSettingEnum;
+    });
+
+    if (it != settings.end()) {
+        this->selectedSetting = &(*it);
+
+        Serial.println("Chosen setting:");
+        Serial.println(translateSettingEnumToString(this->selectedSetting->name));
+        Serial.println(this->selectedSetting->memoryValue->readValue());
+    } else {
+        Serial.println("Invalid setting selection");
+    }
+}
+
+void Navigation::setSettingValue() {
+    if (this->selectedSetting == nullptr) {
+        throw std::runtime_error("Selected Setting is empty");
+    }
+
+    this->selectedSetting->memoryValue->setValue(this->temporarySettingValue);
 }
 
 void Navigation::setServoCalibrationMin() {
@@ -379,10 +497,16 @@ String Navigation::translateMainMenuStateEnumIntoString(MainMenuEnum mainMenuSta
             return "Calibration";
         case MainMenuMove:
             return "Move";
+        case MainMenuMoveBothServos:
+            return "MoveBothServos";
         case MainMenuMoveSmoothly:
             return "MoveSmoothly";
+        case MainMenuMoveBothServosSmoothly:
+            return "MoveBothServosSmoothly";
         case MainMenuAppMode:
             return "AppMode";
+        case MainMenuSettings:
+            return "Settings";
         case MainMenuServoSelection:
             return "Servo Selection";
     }
@@ -396,6 +520,17 @@ String Navigation::translateServoEnumToString(ServoEnum servoEnum) {
             return "ServoPullOpen";
         case ServoPullClose:
             return "ServoPullClose";
+    }
+
+    return "Unknown";
+}
+
+String Navigation::translateSettingEnumToString(SettingEnum settingEnum) {
+    switch (settingEnum) {
+        case SettingOptimalTemperature:
+            return "OptimalTemperature";
+        case SettingChangeDiffThreshold:
+            return "ChangeDiffThreshold";
     }
 
     return "Unknown";
@@ -423,6 +558,9 @@ void Navigation::displayMainMenuLed(MainMenuEnum mainMenuState) {
             break;
         case MainMenuServoSelection:
             led.setColorYellow();
+            break;
+        case MainMenuSettings:
+            led.setColorOrange();
             break;
         case MainMenuNone:
         default:
