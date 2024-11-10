@@ -377,7 +377,12 @@ void Navigation::handleSettingSelection() {
 
     temporarySelectedSettingEnum = findSettingSelection(settingSelectionValue);
 
-    Serial.println(translateSettingEnumToString(temporarySelectedSettingEnum));
+    Setting* setting = this->getSettingByEnum(temporarySelectedSettingEnum);
+
+    if (setting != nullptr) {
+        Serial.println(translateSettingEnumToString(temporarySelectedSettingEnum));
+        Serial.println(setting->memoryValue->readValue());
+    }
 }
 
 void Navigation::handleSetSettingValue() {
@@ -387,6 +392,8 @@ void Navigation::handleSetSettingValue() {
     uint32_t settingSelectionValue = translateAnalogToGivenRange(value, this->selectedSetting->valueMin, this->selectedSetting->valueMax);
 
     this->temporarySettingValue = settingSelectionValue;
+
+    Serial.println(settingSelectionValue);
 }
 
 void Navigation::confirmServoSelection() {
@@ -406,22 +413,33 @@ void Navigation::confirmAppModeSelection() {
     this->appMode = &temporaryAppMode;
 }
 
-void Navigation::confirmSettingSelection() {
-    this->selectedSettingEnum = this->temporarySelectedSettingEnum;
-
-    auto it = find_if(settings.begin(), settings.end(), [this](Setting setting) {
-        return setting.name == this->selectedSettingEnum;
+Setting* Navigation::getSettingByEnum(SettingEnum settingName) {
+    auto it = find_if(settings.begin(), settings.end(), [settingName](Setting setting) {
+        return setting.name == settingName;
     });
 
     if (it != settings.end()) {
-        this->selectedSetting = &(*it);
-
-        Serial.println("Chosen setting:");
-        Serial.println(translateSettingEnumToString(this->selectedSetting->name));
-        Serial.println(this->selectedSetting->memoryValue->readValue());
-    } else {
-        Serial.println("Invalid setting selection");
+        return &(*it);
     }
+
+    return nullptr;
+}
+
+void Navigation::confirmSettingSelection() {
+    this->selectedSettingEnum = this->temporarySelectedSettingEnum;
+
+    Setting* setting = this->getSettingByEnum(this->selectedSettingEnum);
+
+    if (setting == nullptr) {
+        Serial.println("Invalid setting selection");
+        return;
+    }
+
+    this->selectedSetting = setting;
+
+    Serial.println("Chosen setting:");
+    Serial.println(translateSettingEnumToString(this->selectedSetting->name));
+    Serial.println(this->selectedSetting->memoryValue->readValue());
 }
 
 void Navigation::setSettingValue() {

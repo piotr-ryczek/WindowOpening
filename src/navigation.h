@@ -119,6 +119,7 @@ class Navigation {
         uint16_t getPotentiometerValue();
         void displayMainMenuLed(MainMenuEnum mainMenuState);
         void logAppState();
+        Setting* getSettingByEnum(SettingEnum settingName);
 
     public:
         Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode);

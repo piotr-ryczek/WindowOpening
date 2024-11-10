@@ -35,7 +35,6 @@
 /**
  * Next:
  * - Bluetooth Integration
- * - Save into memory some of the Config
  * - Speaker implementation for Alerts
  * - LCD Screen implementation
  * 

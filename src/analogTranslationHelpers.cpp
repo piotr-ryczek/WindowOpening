@@ -11,7 +11,7 @@ uint8_t translateAnalogTo100Range(uint16_t value) {
 uint32_t translateAnalogToGivenRange(uint16_t value, uint32_t rangeMin, uint32_t rangeMax) {
     uint32_t rangeDiff = rangeMax - rangeMin;
 
-    double proportion = value / 4095;
+    float proportion = static_cast<float>(value) / 4095.0f;
 
-    return rangeMin + (proportion * rangeDiff);
+    return rangeMin + static_cast<uint32_t>(proportion * rangeDiff);
 }
