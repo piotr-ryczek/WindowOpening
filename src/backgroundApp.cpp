@@ -1,7 +1,7 @@
 #include <backgroundApp.h>
 #include <Arduino.h>
 
-BackgroundApp::BackgroundApp(LedWrapper& led): led(led) {
+BackgroundApp::BackgroundApp(LedWrapper& led, LcdWrapper& lcd): led(led), lcd(lcd) {
     this->lastWarningChangeTimer = millis();
     this->currentWarningDisplayedIndex = this->warnings.begin();
     this->isLedActive = false;
@@ -61,8 +61,12 @@ void BackgroundApp::handleWarningsDisplay() {
         }
 
         displayLedColorByWarning(*currentWarningDisplayedIndex);
+        this->lcd.backlight();
+        this->lcd.print(translateWarningEnumToString(*currentWarningDisplayedIndex));
     } else {
         displayLedColorByWarning(NONE_WARNING);
+        this->lcd.clear();
+        this->lcd.noBacklight();
     }
 }
 
@@ -76,4 +80,24 @@ void BackgroundApp::checkForWeatherWarning(vector<WeatherItem> weatherItems) {
 
     // In case data has been checked and nothing dangerous found
     this->removeWarning(WEATHER_DANGEROUS);
+}
+
+String BackgroundApp::translateWarningEnumToString(WarningEnum warning) {
+    switch (warning) {
+        case LOW_BATTERY:
+            return "LOW BATTERY";
+
+        case WEATHER_DANGEROUS:
+            return "WEATHER DANGEROUS";
+
+        case WIFI_FAILED:
+            return "WIFI FAILED";
+
+        case HTTP_CONNECTION_FAILED:
+            return "HTTP CONNECTION FAILED";
+
+        case NONE_WARNING:
+        default:
+            return "NONE";
+    }
 }

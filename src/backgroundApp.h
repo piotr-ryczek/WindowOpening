@@ -6,6 +6,7 @@
 #include <vector>
 #include <ledWrapper.h>
 #include <weatherForecast.h>
+#include <lcdWrapper.h>
 
 using namespace std;
 
@@ -18,16 +19,18 @@ enum WarningEnum { NONE_WARNING, LOW_BATTERY, WEATHER_DANGEROUS, WIFI_FAILED, HT
 class BackgroundApp {
     private:
         LedWrapper& led;
+        LcdWrapper& lcd;
         long lastWarningChangeTimer;
         boolean isLedActive;
         set<WarningEnum>::iterator currentWarningDisplayedIndex;
 
         void displayLedColorByWarning(WarningEnum warning);
+        String translateWarningEnumToString(WarningEnum warning);
 
     public:
         set<WarningEnum> warnings;
         
-        BackgroundApp(LedWrapper& led);
+        BackgroundApp(LedWrapper& led, LcdWrapper& lcd);
 
         void addWarning(WarningEnum warning);
         void removeWarning(WarningEnum warning);

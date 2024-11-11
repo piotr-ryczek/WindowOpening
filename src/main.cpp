@@ -36,7 +36,7 @@
 
 /**
  * Next:
- * - None
+ * - Warnings complete implementation
  * 
  * Further next:
  * - WebApp to aggregate data
@@ -97,7 +97,7 @@ Navigation navigation(POTENTIOMETER_GPIO, servoPullOpenWrapper, servoPullCloseWr
 ButtonHandler enterButton(ENTER_BUTTON_GPIO);
 ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 
-BackgroundApp backgroundApp(ledWrapper);
+BackgroundApp backgroundApp(ledWrapper, lcdWrapper);
 BackendApp backendApp(httpClient);
 
 WeatherForecast weatherForecast(httpClient, WEATHER_FORECAST_API_URL, WEATHER_FORECAST_API_KEY, LOCATION_LAT, LOCATION_LON);
@@ -272,6 +272,11 @@ void setup() {
     xTaskCreate(displayTask, "displayTask", 2048, NULL, 6, &DisplayTask);
 
     lcdWrapper.init();
+
+    delay(1000);
+    backgroundApp.addWarning(LOW_BATTERY);
+    backgroundApp.addWarning(WEATHER_DANGEROUS);
+    
 }
 
 void loop() {
