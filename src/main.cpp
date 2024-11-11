@@ -9,6 +9,7 @@
 #include <Adafruit_BME280.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <LiquidCrystal_I2C.h>
 
 #include <gpios.h>
 #include <memoryData.h>
@@ -25,6 +26,7 @@
 #include <logs.h>
 #include <weatherLogs.h>
 #include <backendApp.h>
+#include <lcdWrapper.h>
 
 /**
  * How to simulate calculations:
@@ -34,12 +36,12 @@
 
 /**
  * Next:
- * - Bluetooth Integration
- * - Speaker implementation for Alerts
- * - LCD Screen implementation
+ * - None
  * 
  * Further next:
  * - WebApp to aggregate data
+ * - Bluetooth Integration
+ * - Speaker implementation for Alerts
  */
 
 #define EEPROM_SIZE 64
@@ -53,7 +55,7 @@ const int GMT_OFFSET_SEC = 3600;
 const int DAYLIGHT_OFFSET_SEC = 3600;
 const char* NTP_SERVER_URL = "pool.ntp.org";
 
-TwoWire I2C_BME_280 = TwoWire(0);
+TwoWire I2C_BME_280 = TwoWire(1);
 
 const int MOVE_SMOOTHLY_MILISECONDS_INTERVAL = 40;
 const int WINDOW_OPENING_CALCULATION_INTERVAL = 1000 * 60 * 5; // Every 5 minutes
@@ -75,8 +77,12 @@ TaskHandle_t WifiConnectionTask;
 TaskHandle_t WeatherConnectionTask;
 TaskHandle_t WeatherForecastTask;
 TaskHandle_t WindowOpeningCalculationTask;
+TaskHandle_t DisplayTask;
 
 // Instances
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+LcdWrapper lcdWrapper(&lcd);
 
 HTTPClient httpClient;
 
@@ -87,7 +93,7 @@ ServoWrapper servoPullCloseWrapper(SERVO_PULL_CLOSE_GPIO, servoPullClose, servoP
 
 LedWrapper ledWrapper(LED_RED_PWM_TIMER_INDEX, LED_RED_GPIO, LED_GREEN_PWM_TIMER_INDEX, LED_GREEN_GPIO, LED_BLUE_PWM_TIMER_INDEX, LED_BLUE_GPIO);
 
-Navigation navigation(POTENTIOMETER_GPIO, servoPullOpenWrapper, servoPullCloseWrapper, ledWrapper, &AppMode);
+Navigation navigation(POTENTIOMETER_GPIO, servoPullOpenWrapper, servoPullCloseWrapper, ledWrapper, &AppMode, &lcdWrapper);
 ButtonHandler enterButton(ENTER_BUTTON_GPIO);
 ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 
@@ -216,7 +222,16 @@ void wifiConnectionTask(void *param) {
     }
 }
 
+void displayTask(void *param) {
+    while (true) {
+        lcdWrapper.checkScroll();
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
+
 void setup() {
+    Wire.begin(LCD_SDA_GPIO, LCD_SCL_GPIO);
     Serial.begin(115200);
 
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -253,7 +268,10 @@ void setup() {
     xTaskCreate(warningsTask, "WarningsTask", 2048, NULL, 2, &WarningsTask);
     xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 2048, NULL, 3, &ServosSmoothMovementTask);
     xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 4, &WifiConnectionTask);
-    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 16384, NULL, 4, &WindowOpeningCalculationTask); 
+    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 16384, NULL, 5, &WindowOpeningCalculationTask);
+    xTaskCreate(displayTask, "displayTask", 2048, NULL, 6, &DisplayTask);
+
+    lcdWrapper.init();
 }
 
 void loop() {
@@ -284,6 +302,14 @@ void loop() {
                 navigation.handleSetSettingValue();
             }
 
+            break;
+        }
+        case MainMenuMoveSmoothly: {
+            navigation.handleMoveSmoothlySelection();
+            break;
+        }
+        case MainMenuMoveBothServosSmoothly: {
+            navigation.handleMoveBothServosSmoothlySelection();
             break;
         }
     }

@@ -11,8 +11,6 @@ class ServoWrapper {
         Servo& servo;
         MemoryValue& minMemoryValue;
         MemoryValue& maxMemoryValue;
-        uint8_t min;
-        uint8_t max;
         uint8_t translateFrom100ToDegrees(uint8_t position);
         uint8_t translateFromDegreesTo100(uint8_t position);
         uint8_t movingSmoothlyTarget;
@@ -20,6 +18,8 @@ class ServoWrapper {
 
     public:
         bool isMovingSmoothly = false;
+        uint8_t min;
+        uint8_t max;
 
         ServoWrapper(byte servoGpio, Servo& servo, MemoryValue& minMemoryValue, MemoryValue& maxMemoryValue);
         void initialize(int timerNumber);

@@ -8,6 +8,7 @@
 #include <ledWrapper.h>
 #include <memoryValue.h>
 #include <memoryData.h>
+#include <lcdWrapper.h>
 
 using namespace std;
 
@@ -82,6 +83,7 @@ class Navigation {
         AppModeEnum* appMode;
         AppModeEnum temporaryAppMode;
         uint32_t temporarySettingValue;
+        LcdWrapper* lcd;
 
         void setServoCalibrationMin();
         void setServoCalibrationMax();
@@ -102,6 +104,7 @@ class Navigation {
         String translateAppMainStateEnumIntoString(AppMainStateEnum appMainState);
         String translateMainMenuStateEnumIntoString(MainMenuEnum mainMenuState);
         String translateServoEnumToString(ServoEnum servoEnum);
+        String translateServoEnumToStringShort(ServoEnum servoEnum);
         String translateAppModeEnumToString(AppModeEnum appModeEnum);
         String translateSettingEnumToString(SettingEnum settingEnum);
 
@@ -122,7 +125,7 @@ class Navigation {
         Setting* getSettingByEnum(SettingEnum settingName);
 
     public:
-        Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode);
+        Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode, LcdWrapper* lcd);
 
         AppMainStateEnum appMainState;
         MainMenuEnum mainMenuState;
@@ -141,6 +144,8 @@ class Navigation {
         void handleAppModeSelection();
         void handleSettingSelection();
         void handleSetSettingValue();
+        void handleMoveSmoothlySelection();
+        void handleMoveBothServosSmoothlySelection();
 };
 
 #endif

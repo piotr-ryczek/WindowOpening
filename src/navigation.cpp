@@ -20,7 +20,7 @@ vector<Setting> settings {
     },
 };
 
-Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led) {
+Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode, LcdWrapper* lcd): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led), lcd(lcd) {
     this->appMainState = Sleep;
     this->mainMenuState = MainMenuNone; // Chosen menu
     this->mainMenuTemporaryState = MainMenuNone; // Temporary position while selecting
@@ -134,6 +134,7 @@ void Navigation::handleForward() {
         case Sleep: {
             appMainState = Awaken;
             led.setNoColor();
+            lcd->backlight();
 
             this->activateMenuChoosing();
 
@@ -220,7 +221,10 @@ void Navigation::handleBackward() {
             switch (mainMenuState) {
                 case MainMenuNone: {
                     appMainState = Sleep;
+                    
                     this->deactivateMenuChoosing();
+                    lcd->noBacklight();
+                    lcd->clear();
 
                     break;
                 }
@@ -228,6 +232,8 @@ void Navigation::handleBackward() {
                 case MainMenuCalibration:
                 case MainMenuMove:
                 case MainMenuMoveSmoothly:
+                case MainMenuMoveBothServos:
+                case MainMenuMoveBothServosSmoothly:
                 case MainMenuAppMode:
                 case MainMenuServoSelection: {
                     mainMenuState = MainMenuNone;
@@ -314,7 +320,34 @@ void Navigation::handleMenuSelection() {
         displayMainMenuLed(this->mainMenuTemporaryState);
     }
 
-    Serial.println(translateMainMenuStateEnumIntoString(mainMenuTemporaryState));
+    String mainMenuStateString = translateMainMenuStateEnumIntoString(mainMenuTemporaryState);
+
+    switch (mainMenuTemporaryState) {
+        case MainMenuCalibration: {
+            String bottomRowText = translateServoEnumToStringShort(this->selectedServoEnum) + " " + String(this->selectedServo->min) + ":" + String(this->selectedServo->max);
+
+            lcd->print(mainMenuStateString, bottomRowText);
+            break;
+        }
+
+        case MainMenuAppMode: {
+            lcd->print(mainMenuStateString, translateAppModeEnumToString(*appMode));
+            break;
+        }
+
+        case MainMenuServoSelection:
+        case MainMenuMove:
+        case MainMenuMoveSmoothly: {
+            lcd->print(mainMenuStateString, translateServoEnumToStringShort(this->selectedServoEnum));
+            break;
+        }
+
+        default:
+            lcd->print(mainMenuStateString);
+            break;
+    }
+
+    Serial.println(mainMenuStateString); 
 }
 
 void Navigation::confirmMenuSelection() {
@@ -330,6 +363,7 @@ void Navigation::handleCalibrate() {
     calibrationTemporaryValue = servoValue;
 
     Serial.println(servoValue);
+    lcd->print(translateMainMenuStateEnumIntoString(mainMenuState) + ":", String(servoValue));
 
     selectedServo->write(calibrationTemporaryValue);
 }
@@ -340,6 +374,10 @@ void Navigation::handleMove() {
 
     Serial.println(servoValue);
 
+    String bottomRowText = translateServoEnumToStringShort(selectedServoEnum) + ": " + String(servoValue);
+
+    lcd->print(translateMainMenuStateEnumIntoString(mainMenuState) + ":", bottomRowText);
+
     selectedServo->moveTo(servoValue);
 }
 
@@ -347,6 +385,7 @@ void Navigation::handleMoveBothServos() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoValue = translateAnalogTo100Range(value);
 
+    lcd->print(translateMainMenuStateEnumIntoString(mainMenuState) + ":", String(servoValue));
     Serial.println(servoValue);
 
     servoPullOpen.moveTo(servoValue);
@@ -359,6 +398,7 @@ void Navigation::handleServoSelection() {
 
     temporarySelectedServoEnum = findServoSelection(servoSelectionValue);
 
+    lcd->print(translateMainMenuStateEnumIntoString(mainMenuState) + ":", translateServoEnumToString(temporarySelectedServoEnum));
     Serial.println(translateServoEnumToString(temporarySelectedServoEnum));
 }
 
@@ -368,6 +408,7 @@ void Navigation::handleAppModeSelection() {
 
     temporaryAppMode = findAppModeSelection(appModeSelectionValue);
 
+    lcd->print(translateMainMenuStateEnumIntoString(mainMenuState) + ":", translateAppModeEnumToString(temporaryAppMode));
     Serial.println(translateAppModeEnumToString(temporaryAppMode));
 }
 
@@ -380,8 +421,11 @@ void Navigation::handleSettingSelection() {
     Setting* setting = this->getSettingByEnum(temporarySelectedSettingEnum);
 
     if (setting != nullptr) {
+        uint16_t memoryValue = setting->memoryValue->readValue();
+
+        lcd->print(translateSettingEnumToString(temporarySelectedSettingEnum), "Current: " + String(memoryValue));
         Serial.println(translateSettingEnumToString(temporarySelectedSettingEnum));
-        Serial.println(setting->memoryValue->readValue());
+        Serial.println(memoryValue);
     }
 }
 
@@ -393,7 +437,24 @@ void Navigation::handleSetSettingValue() {
 
     this->temporarySettingValue = settingSelectionValue;
 
+    lcd->print(translateSettingEnumToString(temporarySelectedSettingEnum) + ":", String(this->temporarySettingValue));
     Serial.println(settingSelectionValue);
+}
+
+void Navigation::handleMoveSmoothlySelection() {
+    uint16_t value = getPotentiometerValue();
+    uint8_t servoPosition = translateAnalogTo100Range(value); // 0 - 100
+
+    String bottomRowText = translateServoEnumToStringShort(selectedServoEnum) + ": " + String(servoPosition);
+
+    lcd->print(translateMainMenuStateEnumIntoString(this->mainMenuState) + ":", bottomRowText);
+}
+
+void Navigation::handleMoveBothServosSmoothlySelection() {
+    uint16_t value = getPotentiometerValue();
+    uint8_t servoPosition = translateAnalogTo100Range(value); // 0 - 100
+
+    lcd->print(translateMainMenuStateEnumIntoString(this->mainMenuState) + ":", String(servoPosition));
 }
 
 void Navigation::confirmServoSelection() {
@@ -538,6 +599,17 @@ String Navigation::translateServoEnumToString(ServoEnum servoEnum) {
             return "ServoPullOpen";
         case ServoPullClose:
             return "ServoPullClose";
+    }
+
+    return "Unknown";
+}
+
+String Navigation::translateServoEnumToStringShort(ServoEnum servoEnum) {
+    switch (servoEnum) {
+        case ServoPullOpen:
+            return "Open";
+        case ServoPullClose:
+            return "Close";
     }
 
     return "Unknown";
