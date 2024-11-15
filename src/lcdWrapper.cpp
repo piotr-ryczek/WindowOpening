@@ -41,6 +41,15 @@ void LcdWrapper::noBacklight() {
   this->lcd->noBacklight();
 }
 
+void LcdWrapper::turnOn() {
+  this->lcd->init();
+  this->lcd->backlight();
+}
+
+void LcdWrapper::turnOff() {
+  this->lcd->noBacklight();
+}
+
 void LcdWrapper::init() {
   this->lcd->init();
 }

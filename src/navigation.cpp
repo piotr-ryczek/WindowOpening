@@ -18,6 +18,12 @@ vector<Setting> settings {
         valueMax: 100,
         memoryValue: &changeDiffThresholdMemory,
     },
+    Setting{
+        name: WindowOpeningCalculationInterval,
+        valueMin: 10, // 10 seconds
+        valueMax: 3600, // 1 hour
+        memoryValue: &windowOpeningCalculationIntervalMemory,
+    },
 };
 
 Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode, LcdWrapper* lcd): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led), lcd(lcd) {
@@ -38,7 +44,7 @@ Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, Serv
     this->selectedSetting = nullptr;
 
     this->assignRangesForMainMenu(vector<MainMenuEnum> { MainMenuCalibration, MainMenuMove, MainMenuMoveBothServos, MainMenuMoveSmoothly, MainMenuMoveBothServosSmoothly, MainMenuServoSelection, MainMenuAppMode, MainMenuSettings });
-    this->assignRangesForSettings(vector<SettingEnum> { SettingOptimalTemperature, SettingChangeDiffThreshold });
+    this->assignRangesForSettings(vector<SettingEnum> { SettingOptimalTemperature, SettingChangeDiffThreshold, WindowOpeningCalculationInterval });
 
     this->servoSelectionPositions = {
         ServoSelectionPosition{
@@ -134,7 +140,7 @@ void Navigation::handleForward() {
         case Sleep: {
             appMainState = Awaken;
             led.setNoColor();
-            lcd->backlight();
+            lcd->turnOn();
 
             this->activateMenuChoosing();
 
@@ -223,7 +229,7 @@ void Navigation::handleBackward() {
                     appMainState = Sleep;
                     
                     this->deactivateMenuChoosing();
-                    lcd->noBacklight();
+                    lcd->turnOff();
                     lcd->clear();
 
                     break;
@@ -396,7 +402,13 @@ void Navigation::handleServoSelection() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoSelectionValue = translateAnalogTo100Range(value);
 
-    temporarySelectedServoEnum = findServoSelection(servoSelectionValue);
+     ServoEnum localTemporarySelectedServoEnum = findServoSelection(servoSelectionValue);
+
+    if (localTemporarySelectedServoEnum == temporarySelectedServoEnum) {
+        return;
+    }
+
+    temporarySelectedServoEnum = localTemporarySelectedServoEnum;
 
     lcd->print(translateMainMenuStateEnumIntoString(mainMenuState) + ":", translateServoEnumToString(temporarySelectedServoEnum));
     Serial.println(translateServoEnumToString(temporarySelectedServoEnum));
@@ -406,7 +418,13 @@ void Navigation::handleAppModeSelection() {
     uint16_t value = getPotentiometerValue();
     uint8_t appModeSelectionValue = translateAnalogTo100Range(value);
 
-    temporaryAppMode = findAppModeSelection(appModeSelectionValue);
+    AppModeEnum localTemporaryAppMode = findAppModeSelection(appModeSelectionValue);
+
+    if (localTemporaryAppMode == temporaryAppMode) {
+        return;
+    }
+
+    temporaryAppMode = localTemporaryAppMode;
 
     lcd->print(translateMainMenuStateEnumIntoString(mainMenuState) + ":", translateAppModeEnumToString(temporaryAppMode));
     Serial.println(translateAppModeEnumToString(temporaryAppMode));
@@ -416,12 +434,18 @@ void Navigation::handleSettingSelection() {
     uint16_t value = getPotentiometerValue();
     uint8_t settingSelectionValue = translateAnalogTo100Range(value);
 
-    temporarySelectedSettingEnum = findSettingSelection(settingSelectionValue);
+    SettingEnum localTemporarySelectedSettingEnum = findSettingSelection(settingSelectionValue);
+
+    if (localTemporarySelectedSettingEnum == temporarySelectedSettingEnum) {
+        return;
+    }
+
+    temporarySelectedSettingEnum = localTemporarySelectedSettingEnum;
 
     Setting* setting = this->getSettingByEnum(temporarySelectedSettingEnum);
 
     if (setting != nullptr) {
-        uint16_t memoryValue = setting->memoryValue->readValue();
+        int memoryValue = setting->memoryValue->readValue();
 
         lcd->print(translateSettingEnumToString(temporarySelectedSettingEnum), "Current: " + String(memoryValue));
         Serial.println(translateSettingEnumToString(temporarySelectedSettingEnum));
@@ -497,10 +521,6 @@ void Navigation::confirmSettingSelection() {
     }
 
     this->selectedSetting = setting;
-
-    Serial.println("Chosen setting:");
-    Serial.println(translateSettingEnumToString(this->selectedSetting->name));
-    Serial.println(this->selectedSetting->memoryValue->readValue());
 }
 
 void Navigation::setSettingValue() {
@@ -621,6 +641,8 @@ String Navigation::translateSettingEnumToString(SettingEnum settingEnum) {
             return "OptimalTemperature";
         case SettingChangeDiffThreshold:
             return "ChangeDiffThreshold";
+        case WindowOpeningCalculationInterval:
+            return "WindowOpeningCalculationInterval";
     }
 
     return "Unknown";

@@ -26,7 +26,8 @@ SensorItem AirPollution::fetchPMData(String url) {
     int httpCode = httpClient.GET();
 
     if (httpCode == 0) {
-        throw std::runtime_error("PM Request failed");
+        Serial.println("PM Request failed");
+        return SensorItem{};
     }
 
     if (httpCode != 200) {

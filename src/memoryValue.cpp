@@ -8,8 +8,8 @@ MemoryValue::MemoryValue(int setAddress, int valueAddress, int defaultValue): se
     }
 }
 
-void MemoryValue::setValue(uint16_t newValue) {
-    EEPROM.writeByte(valueAddress, newValue);
+void MemoryValue::setValue(int newValue) {
+    EEPROM.writeInt(valueAddress, newValue);
 
     if (!isSet()) {
         EEPROM.writeBool(setAddress, false); // Reversed logic
@@ -18,8 +18,8 @@ void MemoryValue::setValue(uint16_t newValue) {
     EEPROM.commit();
 }
 
-uint16_t MemoryValue::readValue() {
-    return EEPROM.readByte(valueAddress);
+int MemoryValue::readValue() {
+    return EEPROM.readInt(valueAddress);
 }
 
 bool MemoryValue::isSet() {

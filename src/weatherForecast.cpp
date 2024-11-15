@@ -33,7 +33,8 @@ vector<WeatherItem> WeatherForecast::fetchData() {
     int httpCode = httpClient.GET();
 
     if (httpCode == 0) {
-        throw std::runtime_error("WeatherForecast Request failed");
+        Serial.println("WeatherForecast Request failed");
+        return parsedData;
     }
 
     if (httpCode != 200) {

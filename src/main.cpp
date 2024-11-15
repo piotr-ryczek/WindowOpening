@@ -37,6 +37,7 @@
 /**
  * Next:
  * - Warnings complete implementation
+ * - Simple Log Viewer
  * 
  * Further next:
  * - WebApp to aggregate data
@@ -44,31 +45,14 @@
  * - Speaker implementation for Alerts
  */
 
-#define EEPROM_SIZE 64
+#define EEPROM_SIZE 512
 #define BME280_ADDRESS 0x76
 
 using namespace std;
 
 bool isWifiConnected = false;
 
-const int GMT_OFFSET_SEC = 3600;
-const int DAYLIGHT_OFFSET_SEC = 3600;
-const char* NTP_SERVER_URL = "pool.ntp.org";
-
 TwoWire I2C_BME_280 = TwoWire(1);
-
-const int MOVE_SMOOTHLY_MILISECONDS_INTERVAL = 40;
-const int WINDOW_OPENING_CALCULATION_INTERVAL = 1000 * 60 * 5; // Every 5 minutes
-
-const int AIR_POLLUTION_SENSOR_PM_25_ID = 2071;
-const int AIR_POLLUTION_SENSOR_PM_10_ID = 2069;
-const char* AIR_POLLUTION_SENSOR_API_URL = "https://api.gios.gov.pl/pjp-api/rest/data/getData/";
-const char* WEATHER_FORECAST_API_URL = "https://api.openweathermap.org/data/2.5/";
-
-const double LOCATION_LAT = 51.760229;
-const double LOCATION_LON = 19.550675;
-
-const int DELAY_DIFF_BETWEEN_SERVOS_MILISECONDS = 500; // 0.5s - difference between one will start before other one
 
 TaskHandle_t NavigationTask;
 TaskHandle_t WarningsTask;
@@ -173,8 +157,9 @@ void windowOpeningCalculationTask(void *param) {
                 }
             }
 
-            // By default every 5 minutes
-            vTaskDelay(WINDOW_OPENING_CALCULATION_INTERVAL / portTICK_PERIOD_MS);
+            uint16_t windowOpeningCalculationInterval = windowOpeningCalculationIntervalMemory.readValue(); // In seconds
+
+            vTaskDelay(windowOpeningCalculationInterval * 1000 / portTICK_PERIOD_MS); // To miliseconds
         }
 
         // Checking if state has changed every second
@@ -272,11 +257,6 @@ void setup() {
     xTaskCreate(displayTask, "displayTask", 2048, NULL, 6, &DisplayTask);
 
     lcdWrapper.init();
-
-    delay(1000);
-    backgroundApp.addWarning(LOW_BATTERY);
-    backgroundApp.addWarning(WEATHER_DANGEROUS);
-    
 }
 
 void loop() {

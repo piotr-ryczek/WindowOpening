@@ -50,7 +50,9 @@ void ServoWrapper::write(uint8_t newPositionDegrees) {
  * In range 0 - 100 (has to be calibrated first)
  */
 void ServoWrapper::moveTo(uint8_t newPosition) {
-    write(translateFrom100ToDegrees(newPosition));
+    uint8_t degrees = translateFrom100ToDegrees(newPosition);
+
+    write(degrees);
 }
 
 void ServoWrapper::moveSmoothly() {
@@ -74,6 +76,11 @@ void ServoWrapper::setMovingSmoothlyTarget(uint8_t newPosition) {
 
     this->movingSmoothlyTarget = newPosition;
     this->movingSmoothlyCurrentPosition = currentPosition;
+
+    if (this->movingSmoothlyTarget == this->movingSmoothlyCurrentPosition) {
+        return;
+    }
+
     this->isMovingSmoothly = true;
 }
 
@@ -100,15 +107,23 @@ uint8_t ServoWrapper::translateFromDegreesTo100(uint8_t position) {
     uint8_t positionDiff;
 
     if (max > min) {
-        if (position < min || position > max) {
-            throw std::runtime_error("Invalid position value");
+        if (position < min) {
+            position = min;
+        }
+
+        if (position > max) {
+            position = max;
         }
 
         distance = max - min;
         positionDiff = position - min;
     } else {
-        if (position > min || position < max) {
-            throw std::runtime_error("Invalid position value");
+        if (position > min) {
+            position = min;
+        }
+
+        if (position < max) {
+            position = max;
         }
 
         distance = min - max;

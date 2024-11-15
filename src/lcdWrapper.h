@@ -19,6 +19,8 @@ class LcdWrapper {
     void checkScroll();
     void backlight();
     void noBacklight();
+    void turnOn();
+    void turnOff();
     void print(String topRowText);
     void print(String topRowText, String bottomRowText);
     void init();

@@ -17,6 +17,9 @@ MemoryValue servoPullCloseCalibrationMinMemory(SERVO_PULL_CLOSE_CALIBRATION_MIN_
 // Pull Close Calibration Max
 MemoryValue servoPullCloseCalibrationMaxMemory(SERVO_PULL_CLOSE_CALIBRATION_MAX_SET_ADDRESS, SERVO_PULL_CLOSE_CALIBRATION_MAX_VALUE_ADDRESS);
 
+// Settings
 MemoryValue optimalTemperatureMemory(OPTIMAL_TEMPERATURE_SET_ADDRESS, OPTIMAL_TEMPERATURE_VALUE_ADDRESS, PIDController::DEFAULT_OPTIMAL_TEMPERATURE);
 
 MemoryValue changeDiffThresholdMemory(CHANGE_DIFF_THRESHOLD_SET_ADDRESS, CHANGE_DIFF_THRESHOLD_VALUE_ADDRESS, PIDController::DEFAULT_CHANGE_DIFF_THRESHOLD);
+
+MemoryValue windowOpeningCalculationIntervalMemory(WINDOW_OPENING_CALCULATION_INTERVAL_SET_ADDRESS, WINDOW_OPENING_CALCULATION_INTERVAL_VALUE_ADDRESS, 60 * 5); // Default: Every 5 minutes (stored in seconds, have to calculated to miliseconds in execution)

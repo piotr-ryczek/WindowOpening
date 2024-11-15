@@ -75,7 +75,6 @@ void BackendApp::saveLogToApp(BackendAppLog logData) {
 
   if (httpCode <= 0) {
     Serial.println("BackendApp Request failed");
-    throw std::runtime_error("BackendApp Request failed");
   }
 
   if (httpCode != 201) {

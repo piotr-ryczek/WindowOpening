@@ -11,8 +11,8 @@ class MemoryValue {
     public:
         MemoryValue(int setAddress, int valueAddress);
         MemoryValue(int setAddress, int valueAddress, int defaultValue);
-        void setValue(uint16_t value);
-        uint16_t readValue();
+        void setValue(int value);
+        int readValue();
 
         bool isSet();
         void unset();
