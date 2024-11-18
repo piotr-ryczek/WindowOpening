@@ -5,16 +5,19 @@
 #include <string>
 #include <vector>
 #include <timeHelpers.h>
+#include <backgroundApp.h>
 
 using namespace std;
 
 WeatherForecast::WeatherForecast(
-            HTTPClient& httpClient,
+            HTTPClient* httpClient,
+            BackgroundApp* backgroundApp,
             const char* weatherApiUrl,
             const char* weatherApiKey,
             double locationLat,
             double locationLon):
             httpClient(httpClient),
+            backgroundApp(backgroundApp),
             weatherApiUrl(weatherApiUrl), 
             weatherApiKey(weatherApiKey), 
             locationLat(locationLat), 
@@ -28,21 +31,25 @@ vector<WeatherItem> WeatherForecast::fetchData() {
     String url = buildUrl();
     vector<WeatherItem> parsedData;
 
-    httpClient.begin(url);
+    httpClient->begin(url);
 
-    int httpCode = httpClient.GET();
+    int httpCode = httpClient->GET();
 
     if (httpCode == 0) {
         Serial.println("WeatherForecast Request failed");
+        backgroundApp->addWarning(WEATHER_FORECAST_HTTP_REQUEST_FAILED);
         return parsedData;
     }
 
     if (httpCode != 200) {
         Serial.println("WeatherForecast didn't respond with 200");
+        backgroundApp->addWarning(WEATHER_FORECAST_HTTP_REQUEST_FAILED);
         return parsedData;
     }
 
-    String response = httpClient.getString();
+    backgroundApp->removeWarning(WEATHER_FORECAST_HTTP_REQUEST_FAILED);
+
+    String response = httpClient->getString();
 
     JsonDocument doc;
     deserializeJson(doc, response);
@@ -61,7 +68,7 @@ vector<WeatherItem> WeatherForecast::fetchData() {
         });
     }
 
-    httpClient.end();
+    httpClient->end();
 
     return parsedData;
 }

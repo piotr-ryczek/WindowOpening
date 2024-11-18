@@ -3,11 +3,13 @@
 #include <airPollution.h>
 
 AirPollution::AirPollution(
-            HTTPClient& httpClient,
+            HTTPClient* httpClient,
+            BackgroundApp* backgroundApp,
             const char* pollutionApiUrl, 
             int sensorPM25Id,
             int sensorPM10Id):
             httpClient(httpClient),
+            backgroundApp(backgroundApp),
             pollutionApiUrl(pollutionApiUrl),
             sensorPM25Id(sensorPM25Id),
             sensorPM10Id(sensorPM10Id) {}
@@ -21,26 +23,32 @@ String AirPollution::buildPM10Url() {
 }
 
 SensorItem AirPollution::fetchPMData(String url) {
-    httpClient.begin(url);
+    httpClient->begin(url);
 
-    int httpCode = httpClient.GET();
+    int httpCode = httpClient->GET();
 
     if (httpCode == 0) {
         Serial.println("PM Request failed");
+        backgroundApp->addWarning(AIR_POLLUTION_HTTP_REQUEST_FAILED);
         return SensorItem{};
     }
 
     if (httpCode != 200) {
         Serial.println("PM Request didn't respond with 200");
+        backgroundApp->addWarning(AIR_POLLUTION_HTTP_REQUEST_FAILED);
         return SensorItem{};
     }
 
-    String payload = httpClient.getString();
+    backgroundApp->removeWarning(AIR_POLLUTION_HTTP_REQUEST_FAILED);
+
+    String payload = httpClient->getString();
 
     JsonDocument doc;
     deserializeJson(doc, payload);
 
     auto firstResult = doc["values"][0];
+
+    httpClient->end();
 
     return SensorItem{
         pollutionValue: firstResult["value"],

@@ -29,7 +29,9 @@ void BackgroundApp::displayLedColorByWarning(WarningEnum warning) {
             led.setColorYellow(); // Same
             break;
 
-        case HTTP_CONNECTION_FAILED:
+        case BACKEND_HTTP_REQUEST_FAILED:
+        case WEATHER_FORECAST_HTTP_REQUEST_FAILED:
+        case AIR_POLLUTION_HTTP_REQUEST_FAILED:
             led.setColorYellow(); // Same
             break;
 
@@ -93,8 +95,14 @@ String BackgroundApp::translateWarningEnumToString(WarningEnum warning) {
         case WIFI_FAILED:
             return "WIFI FAILED";
 
-        case HTTP_CONNECTION_FAILED:
-            return "HTTP CONNECTION FAILED";
+        case BACKEND_HTTP_REQUEST_FAILED:
+            return "BACKEND FAILED";
+
+        case WEATHER_FORECAST_HTTP_REQUEST_FAILED:
+            return "WEATHER FORECAST FAILED" ;
+
+        case AIR_POLLUTION_HTTP_REQUEST_FAILED:
+            return "AIR POLLUTION FAILED";
 
         case NONE_WARNING:
         default:

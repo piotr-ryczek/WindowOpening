@@ -14,7 +14,8 @@ const int timerDelay = 500; // For switching LED Color
 const int WARNING_WEATHER_MAX_HOURS_AHEAD = 9; // How many hours ahead are we going to check weather
 const int WARNING_WIND_SPEED = 8; // m/s
 
-enum WarningEnum { NONE_WARNING, LOW_BATTERY, WEATHER_DANGEROUS, WIFI_FAILED, HTTP_CONNECTION_FAILED };
+// LOW_BATTERY - currently unused
+enum WarningEnum { NONE_WARNING, LOW_BATTERY, WEATHER_DANGEROUS, WIFI_FAILED, BACKEND_HTTP_REQUEST_FAILED, WEATHER_FORECAST_HTTP_REQUEST_FAILED, AIR_POLLUTION_HTTP_REQUEST_FAILED };
 
 class BackgroundApp {
     private:

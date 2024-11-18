@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include <backgroundApp.h>
 
 struct AirPollutionItem {
     double pm25; // Max norm: 15
@@ -19,7 +20,8 @@ struct SensorItem {
 class AirPollution {
 
     private:
-        HTTPClient& httpClient;
+        HTTPClient* httpClient;
+        BackgroundApp* backgroundApp;
         const char* pollutionApiUrl;
         int sensorPM25Id;
         int sensorPM10Id;
@@ -30,7 +32,8 @@ class AirPollution {
 
     public:
         AirPollution(
-            HTTPClient& httpClient,
+            HTTPClient* httpClient,
+            BackgroundApp* backgroundApp,
             const char* pollutionApiUrl, 
             int sensorPM25Id,
             int sensorPM10Id

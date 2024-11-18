@@ -3,16 +3,16 @@
 #include <backendApp.h>
 #include <secrets.h>
 
-BackendApp::BackendApp(HTTPClient& httpClient): httpClient(httpClient) {}
+BackendApp::BackendApp(HTTPClient* httpClient, BackgroundApp* backgroundApp): httpClient(httpClient), backgroundApp(backgroundApp) {}
 
 void BackendApp::saveLogToApp(BackendAppLog logData) {
-  if (!httpClient.begin("https://window-opening.nero12.usermd.net")) {
+  if (!httpClient->begin("https://window-opening.nero12.usermd.net")) {
     Serial.println("Failed to connect to BackendApp");
     return;
   }
 
-  httpClient.addHeader("Content-Type", "application/json");
-  httpClient.addHeader("App-Secret", BACKEND_APP_SECRET);
+  httpClient->addHeader("Content-Type", "application/json");
+  httpClient->addHeader("App-Secret", BACKEND_APP_SECRET);
 
   JsonDocument doc; // Should be better adjusted
 
@@ -71,17 +71,20 @@ void BackendApp::saveLogToApp(BackendAppLog logData) {
   String payload;
   serializeJson(doc, payload);
 
-  int httpCode = httpClient.POST(payload);
+  int httpCode = httpClient->POST(payload);
 
   if (httpCode <= 0) {
     Serial.println("BackendApp Request failed");
+    backgroundApp->addWarning(BACKEND_HTTP_REQUEST_FAILED);
   }
 
   if (httpCode != 201) {
     Serial.println("BackendApp didn't respond with 201");
+    backgroundApp->addWarning(BACKEND_HTTP_REQUEST_FAILED);
   } else {
     Serial.println("BackendApp retrieved log data");
+    backgroundApp->removeWarning(BACKEND_HTTP_REQUEST_FAILED);
   }
 
-  httpClient.end();
+  httpClient->end();
 }

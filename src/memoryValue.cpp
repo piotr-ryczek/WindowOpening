@@ -9,6 +9,12 @@ MemoryValue::MemoryValue(int setAddress, int valueAddress, int defaultValue): se
 }
 
 void MemoryValue::setValue(int newValue) {
+    int currentValue = this->readValue();
+
+    if (currentValue == newValue) {
+        return;
+    }
+    
     EEPROM.writeInt(valueAddress, newValue);
 
     if (!isSet()) {

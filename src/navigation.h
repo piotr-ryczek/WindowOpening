@@ -26,7 +26,11 @@ enum MainMenuEnum {
 };
 enum CalibrationStepEnum { CalibrationStepMin, CalibrationStepMax };
 enum ServoEnum { ServoPullOpen, ServoPullClose};
-enum SettingEnum { SettingOptimalTemperature, SettingChangeDiffThreshold, WindowOpeningCalculationInterval };
+enum SettingEnum { 
+    SettingOptimalTemperature, 
+    SettingChangeDiffThreshold, 
+    WindowOpeningCalculationInterval 
+};
 
 struct MainMenuPosition {
     MainMenuEnum name;

@@ -2,6 +2,7 @@
 #define BACKEND_APP_H
 
 #include <HTTPClient.h>
+#include <backgroundApp.h>
 
 struct BackendAppLogConfig {
     double weatherLogNotOlderThanHours;
@@ -47,10 +48,11 @@ struct BackendAppLog {
 
 class BackendApp {
   private:
-      HTTPClient& httpClient;
+      HTTPClient* httpClient;
+      BackgroundApp* backgroundApp;
 
   public:
-      BackendApp(HTTPClient& httpClient);
+      BackendApp(HTTPClient* httpClient, BackgroundApp* backgroundApp);
 
       void saveLogToApp(BackendAppLog logData);
 };

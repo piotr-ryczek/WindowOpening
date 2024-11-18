@@ -22,7 +22,6 @@ const int SERVO_PULL_CLOSE_CALIBRATION_MAX_VALUE_ADDRESS = 28;
 const int OPTIMAL_TEMPERATURE_SET_ADDRESS = 32;
 const int OPTIMAL_TEMPERATURE_VALUE_ADDRESS = 36;
 
-// Unused currently
 const int P_TERM_POSITIVE_SET_ADDRESS = 40;
 const int P_TERM_POSITIVE_VALUE_ADDRESS = 44;
 
@@ -44,12 +43,14 @@ const int O_TERM_NEGATIVE_VALUE_ADDRESS = 84;
 const int I_TERM_SET_ADDRESS = 88;
 const int I_TERM_VALUE_ADDRESS = 92;
 
-// Used
 const int CHANGE_DIFF_THRESHOLD_SET_ADDRESS = 96;
 const int CHANGE_DIFF_THRESHOLD_VALUE_ADDRESS = 100;
 
 const int WINDOW_OPENING_CALCULATION_INTERVAL_SET_ADDRESS = 104;
 const int WINDOW_OPENING_CALCULATION_INTERVAL_VALUE_ADDRESS = 108;
+
+const int OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE_SET_ADDRESS = 112;
+const int OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE_VALUE_ADDRESS = 116;
 
 
 // MemoryValues
@@ -69,8 +70,24 @@ extern MemoryValue servoPullCloseCalibrationMaxMemory;
 // Settings
 extern MemoryValue optimalTemperatureMemory;
 
+extern MemoryValue pTermPositive;
+
+extern MemoryValue pTermNegative;
+
+extern MemoryValue dTermPositive;
+
+extern MemoryValue dTermNegative;
+
+extern MemoryValue oTermPositive;
+
+extern MemoryValue oTermNegative;
+
+extern MemoryValue iTerm;
+
 extern MemoryValue changeDiffThresholdMemory;
 
 extern MemoryValue windowOpeningCalculationIntervalMemory;
+
+extern MemoryValue openingTermPositiveTemperatureIncrease;
 
 #endif

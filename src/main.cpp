@@ -27,6 +27,7 @@
 #include <weatherLogs.h>
 #include <backendApp.h>
 #include <lcdWrapper.h>
+#include <bluetoothWrapper.h>
 
 /**
  * How to simulate calculations:
@@ -36,21 +37,20 @@
 
 /**
  * Next:
- * - Warnings complete implementation
  * - Simple Log Viewer
  * 
  * Further next:
  * - WebApp to aggregate data
- * - Bluetooth Integration
- * - Speaker implementation for Alerts
  */
 
-#define EEPROM_SIZE 512
+#define EEPROM_SIZE 768
 #define BME280_ADDRESS 0x76
 
 using namespace std;
 
 bool isWifiConnected = false;
+
+BluetoothSerial SerialBT;
 
 TwoWire I2C_BME_280 = TwoWire(1);
 
@@ -62,6 +62,7 @@ TaskHandle_t WeatherConnectionTask;
 TaskHandle_t WeatherForecastTask;
 TaskHandle_t WindowOpeningCalculationTask;
 TaskHandle_t DisplayTask;
+TaskHandle_t BluetoothCommandsTask;
 
 // Instances
 
@@ -69,6 +70,8 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 LcdWrapper lcdWrapper(&lcd);
 
 HTTPClient httpClient;
+
+BluetoothWrapper bluetoothWrapper(&SerialBT);
 
 Servo servoPullOpen;
 Servo servoPullClose;
@@ -82,10 +85,10 @@ ButtonHandler enterButton(ENTER_BUTTON_GPIO);
 ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 
 BackgroundApp backgroundApp(ledWrapper, lcdWrapper);
-BackendApp backendApp(httpClient);
+BackendApp backendApp(&httpClient, &backgroundApp);
 
-WeatherForecast weatherForecast(httpClient, WEATHER_FORECAST_API_URL, WEATHER_FORECAST_API_KEY, LOCATION_LAT, LOCATION_LON);
-AirPollution airPollution(httpClient, AIR_POLLUTION_SENSOR_API_URL, AIR_POLLUTION_SENSOR_PM_25_ID, AIR_POLLUTION_SENSOR_PM_10_ID);
+WeatherForecast weatherForecast(&httpClient, &backgroundApp, WEATHER_FORECAST_API_URL, WEATHER_FORECAST_API_KEY, LOCATION_LAT, LOCATION_LON);
+AirPollution airPollution(&httpClient, &backgroundApp, AIR_POLLUTION_SENSOR_API_URL, AIR_POLLUTION_SENSOR_PM_25_ID, AIR_POLLUTION_SENSOR_PM_10_ID);
 
 Adafruit_BME280 bme;
 
@@ -211,7 +214,15 @@ void displayTask(void *param) {
     while (true) {
         lcdWrapper.checkScroll();
 
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
+    }
+}
+
+void bluetoothCommandsTask(void *param) {
+    while (true) {
+        bluetoothWrapper.handleCommand();
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
     }
 }
 
@@ -235,6 +246,8 @@ void setup() {
 
     delay(100);
 
+    bluetoothWrapper.init();
+
     // Init first log (50 will be invalid value probably)
     float initialTemperature = bme.readTemperature();
     addLog(initialTemperature, 50);
@@ -255,6 +268,7 @@ void setup() {
     xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 4, &WifiConnectionTask);
     xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 16384, NULL, 5, &WindowOpeningCalculationTask);
     xTaskCreate(displayTask, "displayTask", 2048, NULL, 6, &DisplayTask);
+    xTaskCreate(bluetoothCommandsTask, "bluetoothCommandsTask", 4096, NULL, 7, &BluetoothCommandsTask);
 
     lcdWrapper.init();
 }

@@ -16,10 +16,13 @@ struct WeatherItem {
     String date;
 };
 
+class BackgroundApp;
+
 class WeatherForecast {
 
     private:
-        HTTPClient& httpClient;
+        HTTPClient* httpClient;
+        BackgroundApp* backgroundApp;
         const char* weatherApiUrl;
         const char* weatherApiKey;
         double locationLat;
@@ -30,7 +33,8 @@ class WeatherForecast {
 
     public:
         WeatherForecast(
-            HTTPClient& httpClient,
+            HTTPClient* httpClient,
+            BackgroundApp* backgroundApp,
             const char* weatherApiUrl,
             const char* weatherApiKey,
             double locationLat,
