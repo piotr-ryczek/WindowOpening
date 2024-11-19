@@ -14,11 +14,16 @@
 using namespace std;
 
 unordered_map<string, MemoryValue*> settingsMemory;
-vector<string> commandTypes = {"GET", "SET", "GET_LOGS", "GET_TEMPERATURE", "SET_APP_MODE_AUTO", "SET_APP_MODE_MANUAL"};
+vector<string> commandTypes = {"GET", "SET", "GET_LOGS", "GET_TEMPERATURE", "SET_APP_MODE_AUTO", "SET_APP_MODE_MANUAL", "CLEAR_WARNINGS"};
 
-BluetoothWrapper::BluetoothWrapper(BluetoothSerial* serialBT, Adafruit_BME280* bme): serialBT(serialBT), bme(bme) {}
+BluetoothWrapper::BluetoothWrapper(BluetoothSerial* serialBT, Adafruit_BME280* bme, BackgroundApp* backgroundApp): serialBT(serialBT), bme(bme), backgroundApp(backgroundApp) {}
 
 void BluetoothWrapper::init() {
+  if (!serialBT) {
+    Serial.println("BluetoothSerial not initialized");
+    return;
+  }
+
   if (!serialBT->begin(BLUETOOTH_NAME)) {
     Serial.println("Bluetooth initialization failed");
     while (1);
@@ -40,6 +45,8 @@ void BluetoothWrapper::init() {
   settingsMemory["CHANGE_DIFF_THRESHOLD"] = &changeDiffThresholdMemory;
   settingsMemory["WINDOW_OPENING_CALCULATION_INTERVAL"] = &windowOpeningCalculationIntervalMemory;
   settingsMemory["OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE"] = &openingTermPositiveTemperatureIncrease;
+
+  Serial.println("Bluetooth initialized. Ready for pairing");
 }
 
 void BluetoothWrapper::handleCommand() {
@@ -53,23 +60,33 @@ void BluetoothWrapper::handleCommand() {
 
   vector<string> parts = this->splitString(&receivedData);
 
-  if (parts.size() != 2 && parts.size() != 3) {
-    Serial.println("Not processing bluetooth command as it is invalid");
+  if (parts.empty()) {
+    Serial.println("Not processing bluetooth command: zero parts");
+    return;
+}
+
+  if (parts.size() < 1 && parts.size() > 3) {
+    Serial.println("Not processing bluetooth command: less than 1 or more than 3 parts");
     return;
   }
 
   string commandType = trim(parts.at(0));
-  string property = trim(parts.at(1));
-  
-  auto it = settingsMemory.find(property);
 
-  if (it == settingsMemory.end()) {
-    Serial.println("Invalid property");
-    serialBT->println("Invalid property");
-    return;
+  MemoryValue* memoryData = nullptr;
+
+  if (commandType == "SET" || commandType == "GET") {
+    string property = trim(parts.at(1));
+    
+    auto it = settingsMemory.find(property);
+
+    if (it == settingsMemory.end()) {
+      Serial.println("Invalid property");
+      serialBT->println("Invalid property");
+      return;
+    }
+
+    memoryData = it->second;
   }
-
-  MemoryValue* memoryData = it->second;
 
   if (commandType == "SET") {
     handleSetCommand(memoryData, stoi(trim(parts.at(2))));
@@ -83,6 +100,8 @@ void BluetoothWrapper::handleCommand() {
     handleSetAppModeAutoCommand();
   } else if (commandType == "SET_APP_MODE_MANUAL") {
     handleSetAppModeManualCommand();
+  } else if (commandType == "CLEAR_WARNINGS") {
+    handleClearWarningsCommand();
   } else {
     handleInvalidCommand();
   }
@@ -97,14 +116,14 @@ vector<string> BluetoothWrapper::splitString(const String* command) {
     parts.push_back(token);
   }
 
-  if (parts.size() < 2 || parts.size() > 3) {
-    Serial.println("Invalid command: parts less than 2 or more than 3");
-    serialBT->println("Invalid command: parts less than 2 or more than 3");
+  if (parts.size() < 1 || parts.size() > 3) {
+    Serial.println("Invalid command: parts less than 1 or more than 3");
+    serialBT->println("Invalid command: parts less than 1 or more than 3");
 
     return vector<string>();
   }
 
-  string commandType = parts.at(0);
+  string commandType = trim(parts.at(0));
 
   auto it = find(commandTypes.begin(), commandTypes.end(), commandType);
 
@@ -170,19 +189,22 @@ void BluetoothWrapper::handleGetLogsCommand() {
   vector<Log> lastLogs = getLastLogs(10);
 
   for (const auto& log: lastLogs) {
-      Serial.println("Temperature:");
+      Serial.print("Temperature: ");
       Serial.println(log.temperature);
-      Serial.println("WindowOpening:");
+      Serial.print("WindowOpening: ");
       Serial.println(log.windowOpening);
-      Serial.println("DeltaTemporaryWindowOpening:");
+      Serial.print("DeltaTemporaryWindowOpening: ");
       Serial.println(log.deltaTemporaryWindowOpening);
+      Serial.println("----------------");
 
-      serialBT->println("Temperature:");
+      serialBT->print("Temperature: ");
       serialBT->println(log.temperature);
-      serialBT->println("WindowOpening:");
+      serialBT->print("WindowOpening: ");
       serialBT->println(log.windowOpening);
-      serialBT->println("DeltaTemporaryWindowOpening:");
+      serialBT->print("DeltaTemporaryWindowOpening: ");
       serialBT->println(log.deltaTemporaryWindowOpening);
+      serialBT->println("----------------");
+
     }
 }
 
@@ -205,6 +227,13 @@ void BluetoothWrapper::handleSetAppModeManualCommand() {
 
   Serial.println("AppMode changed to Manual");
   serialBT->println("AppMode changed to Manual");
+}
+
+void BluetoothWrapper::handleClearWarningsCommand() {
+  backgroundApp->clearWarnings();
+
+  Serial.println("Warnings cleared");
+  serialBT->println("Warnings cleared");
 }
 
 void BluetoothWrapper::handleInvalidCommand() {

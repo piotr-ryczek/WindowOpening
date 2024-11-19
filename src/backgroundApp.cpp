@@ -84,6 +84,16 @@ void BackgroundApp::checkForWeatherWarning(vector<WeatherItem> weatherItems) {
     this->removeWarning(WEATHER_DANGEROUS);
 }
 
+void BackgroundApp::clearWarnings() {
+    this->removeWarning(NONE_WARNING);
+    this->removeWarning(LOW_BATTERY);
+    this->removeWarning(WEATHER_DANGEROUS);
+    this->removeWarning(WIFI_FAILED);
+    this->removeWarning(BACKEND_HTTP_REQUEST_FAILED);
+    this->removeWarning(WEATHER_FORECAST_HTTP_REQUEST_FAILED);
+    this->removeWarning(AIR_POLLUTION_HTTP_REQUEST_FAILED);
+}
+
 String BackgroundApp::translateWarningEnumToString(WarningEnum warning) {
     switch (warning) {
         case LOW_BATTERY:

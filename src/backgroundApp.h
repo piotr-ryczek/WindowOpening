@@ -35,6 +35,7 @@ class BackgroundApp {
 
         void addWarning(WarningEnum warning);
         void removeWarning(WarningEnum warning);
+        void clearWarnings();
         void checkForWeatherWarning(vector<WeatherItem> weatherItems);
 
         void handleWarningsDisplay();

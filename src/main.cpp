@@ -36,9 +36,6 @@
  */
 
 /**
- * Next:
- * - Simple Log Viewer
- * 
  * Further next:
  * - WebApp to aggregate data
  */
@@ -90,7 +87,7 @@ AirPollution airPollution(&httpClient, &backgroundApp, AIR_POLLUTION_SENSOR_API_
 
 Adafruit_BME280 bme;
 
-BluetoothWrapper bluetoothWrapper(&SerialBT, &bme);
+BluetoothWrapper bluetoothWrapper(&SerialBT, &bme, &backgroundApp);
 
 void handleEnterButtonPress() {
     navigation.handleForward();
@@ -244,9 +241,10 @@ void setup() {
         while (1);
     }
 
-    delay(100);
-
+    Serial.println("BME280 initialized");
     bluetoothWrapper.init();
+
+    delay(100);
 
     // Init first log (50 will be invalid value probably)
     float initialTemperature = bme.readTemperature();
@@ -263,12 +261,12 @@ void setup() {
     servoPullCloseWrapper.initialize(SERVO_PULL_CLOSE_PWM_TIMER_INDEX);
 
     xTaskCreate(navigationTask, "NavigationTask", 2048, NULL, 1, &NavigationTask);
-    xTaskCreate(warningsTask, "WarningsTask", 2048, NULL, 2, &WarningsTask);
-    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 2048, NULL, 3, &ServosSmoothMovementTask);
-    xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 4, &WifiConnectionTask);
-    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 16384, NULL, 5, &WindowOpeningCalculationTask);
-    xTaskCreate(displayTask, "displayTask", 2048, NULL, 6, &DisplayTask);
-    xTaskCreate(bluetoothCommandsTask, "bluetoothCommandsTask", 4096, NULL, 7, &BluetoothCommandsTask);
+    xTaskCreate(warningsTask, "WarningsTask", 2048, NULL, 1, &WarningsTask);
+    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 2048, NULL, 1, &ServosSmoothMovementTask);
+    xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 5, &WifiConnectionTask);
+    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 8192, NULL, 5, &WindowOpeningCalculationTask);
+    xTaskCreate(displayTask, "displayTask", 2048, NULL, 5, &DisplayTask);
+    xTaskCreate(bluetoothCommandsTask, "bluetoothCommandsTask", 4096, NULL, 5, &BluetoothCommandsTask);
 
     lcdWrapper.init();
 }

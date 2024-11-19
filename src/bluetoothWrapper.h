@@ -7,6 +7,7 @@
 #include <BluetoothSerial.h>
 
 #include <memoryValue.h>
+#include <backgroundApp.h>
 
 using namespace std;
 
@@ -14,6 +15,7 @@ class BluetoothWrapper {
   private:
     BluetoothSerial* serialBT;
     Adafruit_BME280* bme;
+    BackgroundApp* backgroundApp;
     vector<string> splitString(const String* command);
     string trim(const string& str);
 
@@ -23,10 +25,11 @@ class BluetoothWrapper {
     void handleGetTemperatureCommand();
     void handleSetAppModeAutoCommand();
     void handleSetAppModeManualCommand();
+    void handleClearWarningsCommand();
     void handleInvalidCommand();
 
   public:
-    BluetoothWrapper(BluetoothSerial* serialBT, Adafruit_BME280* bme);
+    BluetoothWrapper(BluetoothSerial* serialBT, Adafruit_BME280* bme, BackgroundApp* backgroundApp);
     void init();
     void handleCommand();
 };
