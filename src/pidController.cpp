@@ -224,7 +224,7 @@ namespace PIDController {
         backendAppLog.windowOpening = newWindowOpening;
         
         // Add new log to history
-        addLog(newTemperature, newWindowOpening);
+        addLog(newTemperature, newWindowOpening, backendAppLog.deltaTemporaryWindowOpening);
 
         return make_tuple(10, backendAppLog);
     }

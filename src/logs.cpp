@@ -2,10 +2,11 @@
 
 vector<Log> logs;
 
-void addLog(double temperature, int windowOpening) {
+void addLog(double temperature, int windowOpening, int deltaTemporaryWindowOpening) {
     Log newLog;
     newLog.temperature = temperature;
     newLog.windowOpening = windowOpening;
+    newLog.deltaTemporaryWindowOpening = deltaTemporaryWindowOpening;
 
     logs.push_back(newLog);
 

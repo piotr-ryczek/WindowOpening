@@ -71,8 +71,6 @@ LcdWrapper lcdWrapper(&lcd);
 
 HTTPClient httpClient;
 
-BluetoothWrapper bluetoothWrapper(&SerialBT);
-
 Servo servoPullOpen;
 Servo servoPullClose;
 ServoWrapper servoPullOpenWrapper(SERVO_PULL_OPEN_GPIO, servoPullOpen, servoPullOpenCalibrationMinMemory, servoPullOpenCalibrationMaxMemory);
@@ -91,6 +89,8 @@ WeatherForecast weatherForecast(&httpClient, &backgroundApp, WEATHER_FORECAST_AP
 AirPollution airPollution(&httpClient, &backgroundApp, AIR_POLLUTION_SENSOR_API_URL, AIR_POLLUTION_SENSOR_PM_25_ID, AIR_POLLUTION_SENSOR_PM_10_ID);
 
 Adafruit_BME280 bme;
+
+BluetoothWrapper bluetoothWrapper(&SerialBT, &bme);
 
 void handleEnterButtonPress() {
     navigation.handleForward();
@@ -250,7 +250,7 @@ void setup() {
 
     // Init first log (50 will be invalid value probably)
     float initialTemperature = bme.readTemperature();
-    addLog(initialTemperature, 50);
+    addLog(initialTemperature, 50, 0);
 
     ledWrapper.initialize();
 

@@ -10,11 +10,12 @@ const int MAX_LOGS = 10;
 struct Log {
     double temperature;
     int windowOpening;
+    int deltaTemporaryWindowOpening;
 };
 
 extern vector<Log> logs;
 
-void addLog(double temperature, int windowOpening);
+void addLog(double temperature, int windowOpening, int deltaTemporaryWindowOpening);
 vector<Log> getLastLogs(int amount);
 
 #endif
