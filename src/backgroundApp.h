@@ -5,8 +5,10 @@
 #include <set>
 #include <vector>
 #include <ledWrapper.h>
-#include <weatherForecast.h>
 #include <lcdWrapper.h>
+#include <backendApp.h>
+
+struct WeatherItem;
 
 using namespace std;
 

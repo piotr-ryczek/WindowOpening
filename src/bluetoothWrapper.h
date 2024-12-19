@@ -8,6 +8,7 @@
 
 #include <memoryValue.h>
 #include <backgroundApp.h>
+#include <weatherLogs.h>
 
 using namespace std;
 
@@ -27,6 +28,7 @@ class BluetoothWrapper {
     void handleSetAppModeManualCommand();
     void handleClearWarningsCommand();
     void handleInvalidCommand();
+    void handleGetLastWeatherLog();
 
   public:
     BluetoothWrapper(BluetoothSerial* serialBT, Adafruit_BME280* bme, BackgroundApp* backgroundApp);

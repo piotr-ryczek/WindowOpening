@@ -6,11 +6,12 @@ vector<WeatherLog> weatherLogs;
 
 using namespace std;
 
-void addWeatherLog(double outsideTemperature, String outsideTemperatureDate, double pm25, String pm25Date, double pm10, String pm10Date) {
+void addWeatherLog(double outsideTemperature, double windSpeed, String forecastDate, double pm25, String pm25Date, double pm10, String pm10Date) {
     WeatherLog newWeatherLog;
 
     newWeatherLog.outsideTemperature = outsideTemperature;
-    newWeatherLog.outsideTemperatureDate = outsideTemperatureDate;
+    newWeatherLog.windSpeed = windSpeed;
+    newWeatherLog.forecastDate = forecastDate;
     newWeatherLog.pm25 = pm25;
     newWeatherLog.pm25Date = pm25Date;
     newWeatherLog.pm10 = pm10;
@@ -31,7 +32,7 @@ WeatherLog* getLastWeatherLogNotTooOld(double maxHoursOld) {
 
     WeatherLog* lastWeatherLog = &weatherLogs.back();
 
-    float outsideTemperatureHoursAhead = calculateHoursAhead(lastWeatherLog->outsideTemperatureDate);
+    float outsideTemperatureHoursAhead = calculateHoursAhead(lastWeatherLog->forecastDate);
     float pm25HoursAhead = calculateHoursAhead(lastWeatherLog->pm25Date);
     float pm10HoursAhead = calculateHoursAhead(lastWeatherLog->pm10Date);
 

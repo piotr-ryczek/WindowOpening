@@ -1,8 +1,12 @@
 #ifndef BACKEND_APP_H
 #define BACKEND_APP_H
 
+#include <vector>
 #include <HTTPClient.h>
-#include <backgroundApp.h>
+
+class BackgroundApp;
+
+using namespace std;
 
 struct BackendAppLogConfig {
     double weatherLogNotOlderThanHours;
@@ -46,15 +50,43 @@ struct BackendAppLog {
     BackendAppLogPartialData partialData;
 };
 
+struct WeatherItem {
+    float temperature;
+    float windSpeed;
+    float hoursAhead;
+    String date;
+};
+
+struct AirPollutionItem {
+    double pm25; // Max norm: 15
+    String pm25Date;
+    double pm10; // Max norm: 45
+    String pm10Date;
+};
+
+struct SensorItem {
+    double pollutionValue;
+    String date;
+};
+
+struct SensorResponseItem {
+    String date;
+    double value;
+};
+
 class BackendApp {
   private:
       HTTPClient* httpClient;
       BackgroundApp* backgroundApp;
 
+      void addHeaders();
+
   public:
       BackendApp(HTTPClient* httpClient, BackgroundApp* backgroundApp);
 
-      void saveLogToApp(BackendAppLog logData);
+      void saveLogToApp(BackendAppLog* logData);
+      vector<WeatherItem> fetchWeatherForecast();
+      AirPollutionItem fetchAirPollution();
 };
 
 

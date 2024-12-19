@@ -2,7 +2,7 @@
 #include <EEPROM.h>
 #include <vector>
 #include <ESP32Servo.h>
-#include <WiFi.h>
+// #include <WiFi.h>
 #include <HTTPClient.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -10,6 +10,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <LiquidCrystal_I2C.h>
+#include <WiFiClientSecure.h>
 
 #include <gpios.h>
 #include <memoryData.h>
@@ -19,8 +20,6 @@
 #include <ledWrapper.h>
 #include <config.h>
 #include <backgroundApp.h>
-#include <weatherForecast.h>
-#include <airPollution.h>
 #include <secrets.h>
 #include <pidController.h>
 #include <logs.h>
@@ -55,11 +54,11 @@ TaskHandle_t NavigationTask;
 TaskHandle_t WarningsTask;
 TaskHandle_t ServosSmoothMovementTask;
 TaskHandle_t WifiConnectionTask;
-TaskHandle_t WeatherConnectionTask;
-TaskHandle_t WeatherForecastTask;
+TaskHandle_t WeatherForecastAndAirPollutionTask;
 TaskHandle_t WindowOpeningCalculationTask;
 TaskHandle_t DisplayTask;
 TaskHandle_t BluetoothCommandsTask;
+TaskHandle_t HttpTask;
 
 // Instances
 
@@ -67,6 +66,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 LcdWrapper lcdWrapper(&lcd);
 
 HTTPClient httpClient;
+ WiFiClientSecure *client = new WiFiClientSecure;
 
 Servo servoPullOpen;
 Servo servoPullClose;
@@ -82,12 +82,20 @@ ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 BackgroundApp backgroundApp(ledWrapper, lcdWrapper);
 BackendApp backendApp(&httpClient, &backgroundApp);
 
-WeatherForecast weatherForecast(&httpClient, &backgroundApp, WEATHER_FORECAST_API_URL, WEATHER_FORECAST_API_KEY, LOCATION_LAT, LOCATION_LON);
-AirPollution airPollution(&httpClient, &backgroundApp, AIR_POLLUTION_SENSOR_API_URL, AIR_POLLUTION_SENSOR_PM_25_ID, AIR_POLLUTION_SENSOR_PM_10_ID);
-
 Adafruit_BME280 bme;
 
 BluetoothWrapper bluetoothWrapper(&SerialBT, &bme, &backgroundApp);
+
+enum HttpQueryTypeEnum { BackendAppWeatherForecastAndAirPollutionQueries, BackendAppSaveLogQuery };
+
+struct HttpQueryQueueItem {
+    HttpQueryTypeEnum type;
+    BackendAppLog* backendAppLog;
+};
+
+bool isHttpQueriesQueueOccupied = false;
+
+vector<HttpQueryQueueItem> httpQueriesQueue;
 
 void handleEnterButtonPress() {
     navigation.handleForward();
@@ -138,7 +146,13 @@ void windowOpeningCalculationTask(void *param) {
 
             // Save to Backend
             if (isWifiConnected) {
-                backendApp.saveLogToApp(backendAppLog);
+                Serial.println("Adding to queue: BackendAppSaveLogQuery");
+                HttpQueryQueueItem queueItem = {
+                    type: BackendAppSaveLogQuery,
+                    backendAppLog: &backendAppLog
+                };
+
+                httpQueriesQueue.push_back(queueItem);
             }
 
             Log lastLog = logs.back();
@@ -167,19 +181,67 @@ void windowOpeningCalculationTask(void *param) {
     }
 }
 
-void weatherForecastTask(void *param) {
+void weatherForecastAndAirPollutionTask(void *param) {
     while (true) {
-        if (!isWifiConnected && !WEATHER_FORECAST_ENABLED) return;
+        Serial.println("Adding to queue: BackendAppWeatherForecastAndAirPollutionQueries");
+        HttpQueryQueueItem weatherForecastAndAirPollutionQueueItem = {
+            type: BackendAppWeatherForecastAndAirPollutionQueries,
+            backendAppLog: nullptr
+        };
 
-        auto weatherItems = weatherForecast.fetchData();
-        WeatherItem weatherItem = weatherItems.front();
-        backgroundApp.checkForWeatherWarning(weatherItems);        
-
-        auto airPollutionData = airPollution.fetchData();
-
-        addWeatherLog(weatherItem.temperature, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
+        httpQueriesQueue.push_back(weatherForecastAndAirPollutionQueueItem);
 
         vTaskDelay(1000 * 60 * 60 / portTICK_PERIOD_MS); // Once per hour
+    }
+}
+
+void httpTask(void *param) {
+    while (true) {
+        if (!isWifiConnected || isHttpQueriesQueueOccupied) {
+            vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
+            continue;
+        }
+
+        if (!httpQueriesQueue.empty()) {
+            isHttpQueriesQueueOccupied = true;
+
+            HttpQueryQueueItem olderQueryInQueue = httpQueriesQueue.front();
+
+            switch (olderQueryInQueue.type) {
+                case BackendAppWeatherForecastAndAirPollutionQueries: {
+                    Serial.println("Processing new query from the queue: BackendAppWeatherForecastAndAirPollutionQueries");
+
+                    auto weatherItems = backendApp.fetchWeatherForecast();
+
+                    if (weatherItems.empty()) {
+                        Serial.println("No weather data available");
+                        continue;
+                    }
+
+                    WeatherItem weatherItem = weatherItems.front();
+                    
+                    backgroundApp.checkForWeatherWarning(weatherItems);
+
+                    auto airPollutionData = backendApp.fetchAirPollution();
+
+                    addWeatherLog(weatherItem.temperature, weatherItem.windSpeed, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
+
+                    break;
+                }
+
+                case BackendAppSaveLogQuery: {
+                    Serial.println("Processing new query from the queue: BackendAppSaveLogQuery");
+                    backendApp.saveLogToApp(olderQueryInQueue.backendAppLog);
+
+                    break;
+                }       
+            }
+
+            httpQueriesQueue.erase(httpQueriesQueue.begin());
+            isHttpQueriesQueueOccupied = false;
+        }
+
+        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
     }
 }
 
@@ -190,10 +252,12 @@ void wifiConnectionTask(void *param) {
         if (wifiStatus == WL_CONNECTED) {
             isWifiConnected = true;
             Serial.println("WiFi Connected");
+            client->setInsecure();
+
             configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER_URL); // Synchronize time
             vTaskDelay(5000 / portTICK_PERIOD_MS); // Delay for 5s to give a time to retrieve current time (for first time)
 
-            xTaskCreate(weatherForecastTask, "WeatherForecastTask", 16384, NULL, 5, &WeatherForecastTask);
+            xTaskCreate(httpTask, "HttpTask", 8192, NULL, 5, &HttpTask);
 
             vTaskSuspend(WifiConnectionTask);
         } else {
@@ -261,12 +325,12 @@ void setup() {
     servoPullCloseWrapper.initialize(SERVO_PULL_CLOSE_PWM_TIMER_INDEX);
 
     xTaskCreate(navigationTask, "NavigationTask", 2048, NULL, 1, &NavigationTask);
-    xTaskCreate(warningsTask, "WarningsTask", 2048, NULL, 1, &WarningsTask);
-    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 2048, NULL, 1, &ServosSmoothMovementTask);
-    xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 5, &WifiConnectionTask);
-    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 8192, NULL, 5, &WindowOpeningCalculationTask);
-    xTaskCreate(displayTask, "displayTask", 2048, NULL, 5, &DisplayTask);
-    xTaskCreate(bluetoothCommandsTask, "bluetoothCommandsTask", 4096, NULL, 5, &BluetoothCommandsTask);
+    xTaskCreate(warningsTask, "WarningsTask", 1024, NULL, 1, &WarningsTask);
+    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 1024, NULL, 1, &ServosSmoothMovementTask);
+    xTaskCreate(displayTask, "displayTask", 1024, NULL, 1, &DisplayTask);
+    xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 1, &WifiConnectionTask);
+    xTaskCreate(bluetoothCommandsTask, "bluetoothCommandsTask", 4096, NULL, 1, &BluetoothCommandsTask);
+    xTaskCreate(weatherForecastAndAirPollutionTask, "weatherForecastAndAirPollutionTask", 1024, NULL, 1, &WeatherForecastAndAirPollutionTask);
 
     lcdWrapper.init();
 }

@@ -14,7 +14,16 @@
 using namespace std;
 
 unordered_map<string, MemoryValue*> settingsMemory;
-vector<string> commandTypes = {"GET", "SET", "GET_LOGS", "GET_TEMPERATURE", "SET_APP_MODE_AUTO", "SET_APP_MODE_MANUAL", "CLEAR_WARNINGS"};
+vector<string> commandTypes = {
+  "GET", // GET PROPERTY_NAME
+  "SET", // SET PROPERTY_NAME VALUE
+  "GET_LOGS", 
+  "GET_TEMPERATURE", 
+  "SET_APP_MODE_AUTO", 
+  "SET_APP_MODE_MANUAL", 
+  "GET_LAST_WEATHER_LOG",
+  "CLEAR_WARNINGS"
+};
 
 BluetoothWrapper::BluetoothWrapper(BluetoothSerial* serialBT, Adafruit_BME280* bme, BackgroundApp* backgroundApp): serialBT(serialBT), bme(bme), backgroundApp(backgroundApp) {}
 
@@ -102,6 +111,8 @@ void BluetoothWrapper::handleCommand() {
     handleSetAppModeManualCommand();
   } else if (commandType == "CLEAR_WARNINGS") {
     handleClearWarningsCommand();
+  } else if (commandType == "GET_LAST_WEATHER_LOG") {
+    handleGetLastWeatherLog();
   } else {
     handleInvalidCommand();
   }
@@ -135,7 +146,7 @@ vector<string> BluetoothWrapper::splitString(const String* command) {
   }
 
   if (
-    (commandType == "GET_LOGS" || commandType == "GET_TEMPERATURE" || commandType == "SET_APP_MODE_AUTO" || commandType == "SET_APP_MODE_MANUAL")
+    (commandType == "GET_LOGS" || commandType == "GET_TEMPERATURE" || commandType == "SET_APP_MODE_AUTO" || commandType == "SET_APP_MODE_MANUAL" || commandType == "GET_LAST_WEATHER_LOG")
     && parts.size() != 1
   ) {
     Serial.println("Invalid command: Command expects to be the only one part");
@@ -234,6 +245,47 @@ void BluetoothWrapper::handleClearWarningsCommand() {
 
   Serial.println("Warnings cleared");
   serialBT->println("Warnings cleared");
+}
+
+void BluetoothWrapper::handleGetLastWeatherLog() {
+  WeatherLog* weatherLog = getLastWeatherLogNotTooOld(10);
+
+  if (weatherLog == nullptr) {
+    Serial.println("No weather logs available");
+    serialBT->println("No weather logs available");
+
+    return;
+  }
+
+  Serial.print("forecastDate: ");
+  Serial.println(weatherLog->forecastDate);
+  Serial.print("outsideTemperature: ");
+  Serial.println(weatherLog->outsideTemperature);
+  Serial.print("windSpeed: ");
+  Serial.println(weatherLog->windSpeed);
+  Serial.print("pm10: ");
+  Serial.println(weatherLog->pm10);
+  Serial.print("pm10Date: ");
+  Serial.println(weatherLog->pm10Date);
+  Serial.print("pm25: ");
+  Serial.println(weatherLog->pm25);
+  Serial.print("pm10Date: ");
+  Serial.println(weatherLog->pm10Date);
+
+  serialBT->print("forecastDate: ");
+  serialBT->println(weatherLog->forecastDate);
+  serialBT->print("outsideTemperature: ");
+  serialBT->println(weatherLog->outsideTemperature);
+  serialBT->print("windSpeed: ");
+  serialBT->println(weatherLog->windSpeed);
+  serialBT->print("pm10: ");
+  serialBT->println(weatherLog->pm10);
+  serialBT->print("pm10Date: ");
+  serialBT->println(weatherLog->pm10Date);
+  serialBT->print("pm25: ");
+  serialBT->println(weatherLog->pm25);
+  serialBT->print("pm10Date: ");
+  serialBT->println(weatherLog->pm10Date);
 }
 
 void BluetoothWrapper::handleInvalidCommand() {
