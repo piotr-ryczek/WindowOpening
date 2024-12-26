@@ -11,6 +11,7 @@ class ServoWrapper {
         Servo& servo;
         MemoryValue& minMemoryValue;
         MemoryValue& maxMemoryValue;
+        uint8_t readFromServo();
         uint8_t translateFrom100ToDegrees(uint8_t position);
         uint8_t translateFromDegreesTo100(uint8_t position);
         uint8_t movingSmoothlyTarget;

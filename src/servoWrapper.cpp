@@ -46,6 +46,18 @@ void ServoWrapper::write(uint8_t newPositionDegrees) {
     servo.write(newPositionDegrees);
 }
 
+uint8_t ServoWrapper::readFromServo() {
+    int value = servo.read();
+
+    if (value < 0) {
+        return 0;
+    } else if (value > 180) {
+        return 180;
+    }
+
+    return value;
+}
+
 /**
  * In range 0 - 100 (has to be calibrated first)
  */
@@ -71,7 +83,7 @@ void ServoWrapper::moveSmoothly() {
 }
 
 void ServoWrapper::setMovingSmoothlyTarget(uint8_t newPosition) {
-    uint8_t currentPositionInDegrees = servo.read();
+    uint8_t currentPositionInDegrees = readFromServo();
     uint8_t currentPosition = translateFromDegreesTo100(currentPositionInDegrees);
 
     this->movingSmoothlyTarget = newPosition;
@@ -97,7 +109,7 @@ uint8_t ServoWrapper::translateFrom100ToDegrees(uint8_t position) {
     }
 }
 
-uint8_t ServoWrapper::translateFromDegreesTo100(uint8_t position) {
+uint8_t ServoWrapper::translateFromDegreesTo100(uint8_t positionInDegrees) {
     // Should not happen
     if (min == max) {
         return 100;
@@ -107,29 +119,29 @@ uint8_t ServoWrapper::translateFromDegreesTo100(uint8_t position) {
     uint8_t positionDiff;
 
     if (max > min) {
-        if (position < min) {
-            position = min;
+        if (positionInDegrees < min) {
+            positionInDegrees = min;
         }
 
-        if (position > max) {
-            position = max;
+        if (positionInDegrees > max) {
+            positionInDegrees = max;
         }
 
         distance = max - min;
-        positionDiff = position - min;
+        positionDiff = positionInDegrees - min;
     } else {
-        if (position > min) {
-            position = min;
+        if (positionInDegrees > min) {
+            positionInDegrees = min;
         }
 
-        if (position < max) {
-            position = max;
+        if (positionInDegrees < max) {
+            positionInDegrees = max;
         }
 
         distance = min - max;
-        positionDiff = min - position;
+        positionDiff = min - positionInDegrees;
     }
 
     return positionDiff * 100 / distance;
-
 }
+

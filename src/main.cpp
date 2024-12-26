@@ -326,8 +326,8 @@ void setup() {
 
     xTaskCreate(navigationTask, "NavigationTask", 2048, NULL, 1, &NavigationTask);
     xTaskCreate(warningsTask, "WarningsTask", 1024, NULL, 1, &WarningsTask);
-    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 1024, NULL, 1, &ServosSmoothMovementTask);
-    xTaskCreate(displayTask, "displayTask", 1024, NULL, 1, &DisplayTask);
+    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 2048, NULL, 1, &ServosSmoothMovementTask);
+    xTaskCreate(displayTask, "displayTask", 2048, NULL, 1, &DisplayTask);
     xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 1, &WifiConnectionTask);
     xTaskCreate(bluetoothCommandsTask, "bluetoothCommandsTask", 4096, NULL, 1, &BluetoothCommandsTask);
     xTaskCreate(weatherForecastAndAirPollutionTask, "weatherForecastAndAirPollutionTask", 1024, NULL, 1, &WeatherForecastAndAirPollutionTask);

@@ -549,16 +549,12 @@ void Navigation::moveServoSmoothlyTo() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoPosition = translateAnalogTo100Range(value); // 0 - 100
 
-    Serial.println(servoPosition);
-
     selectedServo->setMovingSmoothlyTarget(servoPosition);
 }
 
 void Navigation::moveBothServoSmoothlyTo() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoPosition = translateAnalogTo100Range(value); // 0 - 100
-
-    Serial.println(servoPosition);
 
     // No delay between movement beginning
     servoPullOpen.setMovingSmoothlyTarget(servoPosition);
