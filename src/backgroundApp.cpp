@@ -56,6 +56,7 @@ void BackgroundApp::handleWarningsDisplay() {
     isLedActive = !isLedActive;
 
     if (isLedActive) {
+
         currentWarningDisplayedIndex++;
 
         if (currentWarningDisplayedIndex == warnings.end()) {
@@ -73,6 +74,10 @@ void BackgroundApp::handleWarningsDisplay() {
 }
 
 void BackgroundApp::checkForWeatherWarning(vector<WeatherItem> weatherItems) {
+    if (weatherItems.empty()) {
+        return;
+    }
+
     for (const auto &item : weatherItems) {
         if (item.hoursAhead < WARNING_WEATHER_MAX_HOURS_AHEAD && item.windSpeed > WARNING_WIND_SPEED) {
             this->addWarning(WEATHER_DANGEROUS);

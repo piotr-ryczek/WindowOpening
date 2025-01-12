@@ -36,6 +36,10 @@ WeatherLog* getLastWeatherLogNotTooOld(double maxHoursOld) {
     float pm25HoursAhead = calculateHoursAhead(lastWeatherLog->pm25Date);
     float pm10HoursAhead = calculateHoursAhead(lastWeatherLog->pm10Date);
 
+    if (!outsideTemperatureHoursAhead || !pm25HoursAhead || !pm10HoursAhead) {
+        return nullptr;
+    }
+
     // Expecting results which aren't too outdated
     if (
         outsideTemperatureHoursAhead < -maxHoursOld ||

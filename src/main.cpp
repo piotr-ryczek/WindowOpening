@@ -27,6 +27,7 @@
 #include <backendApp.h>
 #include <lcdWrapper.h>
 #include <bluetoothWrapper.h>
+#include <timeHelpers.h>
 
 /**
  * How to simulate calculations:
@@ -43,10 +44,6 @@
 #define BME280_ADDRESS 0x76
 
 using namespace std;
-
-bool isWifiConnected = false;
-
-BluetoothSerial SerialBT;
 
 TwoWire I2C_BME_280 = TwoWire(1);
 
@@ -66,7 +63,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 LcdWrapper lcdWrapper(&lcd);
 
 HTTPClient httpClient;
- WiFiClientSecure *client = new WiFiClientSecure;
+WiFiClientSecure *client = new WiFiClientSecure;
 
 Servo servoPullOpen;
 Servo servoPullClose;
@@ -84,7 +81,7 @@ BackendApp backendApp(&httpClient, &backgroundApp);
 
 Adafruit_BME280 bme;
 
-BluetoothWrapper bluetoothWrapper(&SerialBT, &bme, &backgroundApp);
+BluetoothWrapper bluetoothWrapper(&bme, &backgroundApp);
 
 enum HttpQueryTypeEnum { BackendAppWeatherForecastAndAirPollutionQueries, BackendAppSaveLogQuery };
 
@@ -96,6 +93,24 @@ struct HttpQueryQueueItem {
 bool isHttpQueriesQueueOccupied = false;
 
 vector<HttpQueryQueueItem> httpQueriesQueue;
+
+void initWifi() {
+    // WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    shouldTryToConnectToWifi = true;
+}
+
+void disconnectWifi() {
+    bool hasDisconnected = WiFi.disconnect();
+    // WiFi.mode(WIFI_OFF);
+
+    if (!hasDisconnected) {
+        Serial.println("WiFi has not disconnected correctly");
+    } else {
+        isWifiConnected = false;
+        Serial.println("WiFi disconnected");
+    }
+}
 
 void handleEnterButtonPress() {
     navigation.handleForward();
@@ -138,22 +153,28 @@ void servosSmoothMovementTask(void *param) {
     }
 }
 
+
+unsigned long previousWindowOpeningCalculationMillis = 0;
 void windowOpeningCalculationTask(void *param) {
     while (true) {
-        if (AppMode == Auto) {
+        unsigned long currentMillis = millis();
+        uint16_t windowOpeningCalculationInterval = windowOpeningCalculationIntervalMemory.readValue(); // In seconds
+
+        if (
+            AppMode == Auto && currentMillis - previousWindowOpeningCalculationMillis > windowOpeningCalculationInterval * 1000 // Auto mode interval
+            || forceOpeningWindowCalculation == true // Forcing execution
+        ) {
             float currentTemperature = bme.readTemperature();
             auto [newWindowOpening, backendAppLog] = PIDController::calculateWindowOpening(currentTemperature);
 
             // Save to Backend
-            if (isWifiConnected) {
-                Serial.println("Adding to queue: BackendAppSaveLogQuery");
-                HttpQueryQueueItem queueItem = {
-                    type: BackendAppSaveLogQuery,
-                    backendAppLog: &backendAppLog
-                };
+            Serial.println("Adding to queue: BackendAppSaveLogQuery");
+            HttpQueryQueueItem queueItem = {
+                type: BackendAppSaveLogQuery,
+                backendAppLog: &backendAppLog
+            };
 
-                httpQueriesQueue.push_back(queueItem);
-            }
+            httpQueriesQueue.push_back(queueItem);
 
             Log lastLog = logs.back();
 
@@ -171,9 +192,11 @@ void windowOpeningCalculationTask(void *param) {
                 }
             }
 
-            uint16_t windowOpeningCalculationInterval = windowOpeningCalculationIntervalMemory.readValue(); // In seconds
+            previousWindowOpeningCalculationMillis = currentMillis; // Overriding also AUTO interval even if executed manually
 
-            vTaskDelay(windowOpeningCalculationInterval * 1000 / portTICK_PERIOD_MS); // To miliseconds
+            if (forceOpeningWindowCalculation == true) {
+                forceOpeningWindowCalculation = false;
+            }
         }
 
         // Checking if state has changed every second
@@ -197,12 +220,27 @@ void weatherForecastAndAirPollutionTask(void *param) {
 
 void httpTask(void *param) {
     while (true) {
-        if (!isWifiConnected || isHttpQueriesQueueOccupied) {
-            vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
-            continue;
-        }
+        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
+
+        // TODO: Possibly to remove - should be connection existence checked?
+        // if (bluetoothWrapper.hasClient()) {
+        //     continue;
+        // }
 
         if (!httpQueriesQueue.empty()) {
+            if (isHttpQueriesQueueOccupied) {
+                continue;
+            }
+
+            if (!isWifiConnected && !isWifiConnecting) {
+                initWifi();
+                continue;
+            }
+
+            if (!isWifiConnected) {
+                continue;
+            }
+
             isHttpQueriesQueueOccupied = true;
 
             HttpQueryQueueItem olderQueryInQueue = httpQueriesQueue.front();
@@ -215,6 +253,7 @@ void httpTask(void *param) {
 
                     if (weatherItems.empty()) {
                         Serial.println("No weather data available");
+                        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
                         continue;
                     }
 
@@ -239,35 +278,56 @@ void httpTask(void *param) {
 
             httpQueriesQueue.erase(httpQueriesQueue.begin());
             isHttpQueriesQueueOccupied = false;
-        }
 
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
+            disconnectWifi();
+        }
     }
 }
 
 void wifiConnectionTask(void *param) {
     while (true) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
+
+        if (!shouldTryToConnectToWifi && !isWifiConnecting && !isWifiConnected) {
+            continue;
+        } 
+
+        if (isWifiConnected) {
+            continue;
+        }
+        
+        if (shouldTryToConnectToWifi) {
+            shouldTryToConnectToWifi = false;
+            isWifiConnecting = true;
+        }
+
         auto wifiStatus = WiFi.status();
         
         if (wifiStatus == WL_CONNECTED) {
             isWifiConnected = true;
+            isWifiConnecting = false;
             Serial.println("WiFi Connected");
             client->setInsecure();
 
-            configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER_URL); // Synchronize time
-            vTaskDelay(5000 / portTICK_PERIOD_MS); // Delay for 5s to give a time to retrieve current time (for first time)
+            if (!hasNTPAlreadyConfigured) {
+                configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER_URL); // Synchronize time
 
-            xTaskCreate(httpTask, "HttpTask", 8192, NULL, 5, &HttpTask);
+                if (getCurrentTime() == "") {
+                    continue;
+                } else {
+                    hasNTPAlreadyConfigured = true; // It happens only once
+                    Serial.println("Current time obtained");
+                    xTaskCreate(httpTask, "HttpTask", 10240, NULL, 5, &HttpTask);
+                }
 
-            vTaskSuspend(WifiConnectionTask);
+                vTaskDelay(3000 / portTICK_PERIOD_MS); // Delay for 3s to give a time to retrieve current time (for first time)
+            }
         } else {
             isWifiConnected = false;
             Serial.println("WiFi Connecting");
             Serial.print("WiFi Status:");
             Serial.println(wifiStatus);
         }
-
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
     }
 }
 
@@ -279,19 +339,11 @@ void displayTask(void *param) {
     }
 }
 
-void bluetoothCommandsTask(void *param) {
-    while (true) {
-        bluetoothWrapper.handleCommand();
-
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
-    }
-}
-
 void setup() {
     Wire.begin(LCD_SDA_GPIO, LCD_SCL_GPIO);
     Serial.begin(115200);
 
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    initWifi();
 
     if (!EEPROM.begin(EEPROM_SIZE)) {
         Serial.println("EEPROM Error");
@@ -323,14 +375,13 @@ void setup() {
 
     servoPullOpenWrapper.initialize(SERVO_PULL_OPEN_PWM_TIMER_INDEX);
     servoPullCloseWrapper.initialize(SERVO_PULL_CLOSE_PWM_TIMER_INDEX);
-
+    
+    xTaskCreate(warningsTask, "WarningsTask", 1536, NULL, 1, &WarningsTask);
+    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 1024, NULL, 1, &ServosSmoothMovementTask);
+    xTaskCreate(displayTask, "displayTask", 1536, NULL, 1, &DisplayTask);
+    xTaskCreate(weatherForecastAndAirPollutionTask, "weatherForecastAndAirPollutionTask", 768, NULL, 1, &WeatherForecastAndAirPollutionTask);
     xTaskCreate(navigationTask, "NavigationTask", 2048, NULL, 1, &NavigationTask);
-    xTaskCreate(warningsTask, "WarningsTask", 1024, NULL, 1, &WarningsTask);
-    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 2048, NULL, 1, &ServosSmoothMovementTask);
-    xTaskCreate(displayTask, "displayTask", 2048, NULL, 1, &DisplayTask);
     xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 1, &WifiConnectionTask);
-    xTaskCreate(bluetoothCommandsTask, "bluetoothCommandsTask", 4096, NULL, 1, &BluetoothCommandsTask);
-    xTaskCreate(weatherForecastAndAirPollutionTask, "weatherForecastAndAirPollutionTask", 1024, NULL, 1, &WeatherForecastAndAirPollutionTask);
 
     lcdWrapper.init();
 }

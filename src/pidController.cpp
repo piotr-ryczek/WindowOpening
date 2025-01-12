@@ -152,6 +152,8 @@ namespace PIDController {
     }
 
     tuple<int, BackendAppLog> calculateWindowOpening(double newTemperature) {
+        Serial.println("Window Opening Calculation started");
+
         // Retrieving information from memory and pass it to other functions for calculations
         ConfigMetadata configMetadata;
         getDataFromMemory(configMetadata);

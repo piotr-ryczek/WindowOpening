@@ -6,6 +6,13 @@ enum AppModeEnum { Auto, Manual };
 extern AppModeEnum AppMode;
 extern const bool WEATHER_FORECAST_ENABLED;
 
+// Flags
+extern bool forceOpeningWindowCalculation;
+extern bool hasNTPAlreadyConfigured;
+extern bool isWifiConnected;
+extern bool isWifiConnecting;
+extern bool shouldTryToConnectToWifi;
+
 extern const int GMT_OFFSET_SEC;
 extern const int DAYLIGHT_OFFSET_SEC;
 extern const char* NTP_SERVER_URL;

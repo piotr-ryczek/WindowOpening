@@ -14,26 +14,26 @@ using namespace std;
 
 class BluetoothWrapper {
   private:
-    BluetoothSerial* serialBT;
     Adafruit_BME280* bme;
     BackgroundApp* backgroundApp;
     vector<string> splitString(const String* command);
     string trim(const string& str);
 
-    void handleSetCommand(MemoryValue* memoryData, int value);
-    void handleGetCommand(MemoryValue* memoryData);
-    void handleGetLogsCommand();
-    void handleGetTemperatureCommand();
-    void handleSetAppModeAutoCommand();
-    void handleSetAppModeManualCommand();
-    void handleClearWarningsCommand();
-    void handleInvalidCommand();
-    void handleGetLastWeatherLog();
+    String handleSetCommand(MemoryValue* memoryData, int value);
+    String handleGetCommand(MemoryValue* memoryData);
+    String handleGetLogsCommand();
+    String handleGetTemperatureCommand();
+    String handleSetAppModeAutoCommand();
+    String handleSetAppModeManualCommand();
+    String handleClearWarningsCommand();
+    String handleInvalidCommand();
+    String handleGetLastWeatherLogCommand();
+    String handleForceOpeningWindowCalculationCommand();
 
   public:
-    BluetoothWrapper(BluetoothSerial* serialBT, Adafruit_BME280* bme, BackgroundApp* backgroundApp);
+    BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp);
     void init();
-    void handleCommand();
+    String handleCommand(String* message);
 };
 
 #endif

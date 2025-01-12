@@ -2,6 +2,11 @@
 
 AppModeEnum AppMode = Manual; // Always initializing with Manual for security reasons (not stored in memory)
 const bool WEATHER_FORECAST_ENABLED = true;
+bool forceOpeningWindowCalculation = false; // Flag to recalculate manually WindowOpening any time
+bool hasNTPAlreadyConfigured = false; // Can be changed only once
+bool isWifiConnected = false;
+bool isWifiConnecting = false;
+bool shouldTryToConnectToWifi = false;
 
 const int GMT_OFFSET_SEC = 3600;
 const int DAYLIGHT_OFFSET_SEC = 3600;

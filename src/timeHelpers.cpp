@@ -36,6 +36,10 @@ String getCurrentTime() {
 float calculateHoursAhead(String dateToCompare) {
     String currentTime = getCurrentTime();
 
+    if (currentTime == "") {
+        return false;
+    }
+
     long int currentTimeSeconds = getSecondFromDateString(currentTime);
     long int dateToCompareSeconds = getSecondFromDateString(dateToCompare);
 

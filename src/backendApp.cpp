@@ -140,12 +140,14 @@ vector<WeatherItem> BackendApp::fetchWeatherForecast() {
       String date = item["date"];
       float hoursAhead = calculateHoursAhead(date);
 
-      parsedData.push_back(WeatherItem{
+      if (hoursAhead != false) {
+        parsedData.push_back(WeatherItem{
           temperature: temperature,
           windSpeed: windSpeed,
           hoursAhead: hoursAhead,
           date: date,
       });
+      }
   }
   
   httpClient->end();
