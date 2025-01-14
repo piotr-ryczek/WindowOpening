@@ -31,6 +31,17 @@ vector<string> commandTypes = {
 
 BluetoothWrapper::BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp): bme(bme), backgroundApp(backgroundApp) {}
 
+class WindowOpeningBLEServerCallbacks : public BLEServerCallbacks {
+  public:
+    void onConnect(BLEServer* pServer) override {
+        Serial.println("Client connected");
+    }
+
+    void onDisconnect(BLEServer* pServer) override {
+        Serial.println("Client disconnected");
+    }
+};
+
 class WindowOpeningBLECharacteristicCallbacks : public BLECharacteristicCallbacks {
   private:
     BluetoothWrapper* bluetoothWrapper;
@@ -38,12 +49,19 @@ class WindowOpeningBLECharacteristicCallbacks : public BLECharacteristicCallback
   public:
     WindowOpeningBLECharacteristicCallbacks(BluetoothWrapper* wrapper) : bluetoothWrapper(wrapper) {}
 
+
+    WindowOpeningBLECharacteristicCallbacks() {}
+
     void onWrite(BLECharacteristic* pCharacteristic) override {
         std::string value = pCharacteristic->getValue();
         Serial.print("BLE Received: ");
         Serial.println(value.c_str());
 
+        value.erase(std::remove(value.begin(), value.end(), '\n'), value.end());
+        value.erase(std::remove(value.begin(), value.end(), '\r'), value.end());
+
         String response = bluetoothWrapper->handleCommand(new String(value.c_str()));
+
         pCharacteristic->setValue(response.c_str());
     }
 };
@@ -54,6 +72,7 @@ void BluetoothWrapper::init() {
   BLEService *pService = pServer->createService(BLE_SERVICE_UUID);
   BLECharacteristic *pCharacteristic = pService->createCharacteristic(BLE_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
 
+  pServer->setCallbacks(new WindowOpeningBLEServerCallbacks());
   pCharacteristic->setCallbacks(new WindowOpeningBLECharacteristicCallbacks(this));
   pService->start();
 
@@ -76,8 +95,9 @@ void BluetoothWrapper::init() {
 }
 
 String BluetoothWrapper::handleCommand(String* message) {
-  Serial.println("Bluetooth data received: " + *message->c_str());
-
+  Serial.print("Bluetooth data received: ");
+  Serial.println(message->c_str());
+  
   vector<string> parts = this->splitString(message);
 
   if (parts.empty()) {
