@@ -7,6 +7,7 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
+#include <ArduinoJson.h>
 
 #include <bluetoothWrapper.h>
 #include <secrets.h>
@@ -38,7 +39,8 @@ class WindowOpeningBLEServerCallbacks : public BLEServerCallbacks {
     }
 
     void onDisconnect(BLEServer* pServer) override {
-        Serial.println("Client disconnected");
+      pServer->startAdvertising();
+      Serial.println("Client disconnected");
     }
 };
 
@@ -48,7 +50,6 @@ class WindowOpeningBLECharacteristicCallbacks : public BLECharacteristicCallback
 
   public:
     WindowOpeningBLECharacteristicCallbacks(BluetoothWrapper* wrapper) : bluetoothWrapper(wrapper) {}
-
 
     WindowOpeningBLECharacteristicCallbacks() {}
 
@@ -60,9 +61,19 @@ class WindowOpeningBLECharacteristicCallbacks : public BLECharacteristicCallback
         value.erase(std::remove(value.begin(), value.end(), '\n'), value.end());
         value.erase(std::remove(value.begin(), value.end(), '\r'), value.end());
 
-        String response = bluetoothWrapper->handleCommand(new String(value.c_str()));
+        auto [response, commandType] = bluetoothWrapper->handleCommand(new String(value.c_str()));
 
-        pCharacteristic->setValue(response.c_str());
+        for (const auto& item : response) {
+          StaticJsonDocument<400> jsonDoc;
+          JsonObject jsonObject = jsonDoc.createNestedObject();
+          jsonObject["commandType"] = commandType;
+          jsonObject["data"] = item;
+
+          String jsonString;
+          serializeJson(jsonDoc, jsonString);
+          pCharacteristic->setValue(jsonString.c_str());
+          pCharacteristic->notify();
+        }
     }
 };
 
@@ -94,20 +105,21 @@ void BluetoothWrapper::init() {
   Serial.println("Bluetooth initialized. Ready for pairing");
 }
 
-String BluetoothWrapper::handleCommand(String* message) {
+tuple<vector<String>, String> BluetoothWrapper::handleCommand(String* message) {
   Serial.print("Bluetooth data received: ");
   Serial.println(message->c_str());
   
+  vector<String> response;
   vector<string> parts = this->splitString(message);
 
   if (parts.empty()) {
     Serial.println("Not processing bluetooth command: zero parts");
-    return "Invalid Command: Zero Parts";
+    response.push_back("Invalid Command: Zero Parts");
 }
 
   if (parts.size() < 1 && parts.size() > 3) {
     Serial.println("Not processing bluetooth command: less than 1 or more than 3 parts");
-    return "Invalid Command: Less than 1 or more than 3 parts";
+    response.push_back("Invalid Command: Less than 1 or more than 3 parts");
   }
 
   string commandType = trim(parts.at(0));
@@ -121,33 +133,43 @@ String BluetoothWrapper::handleCommand(String* message) {
 
     if (it == settingsMemory.end()) {
       Serial.println("Invalid property");
-      return "Invalid Property";
+      response.push_back("Invalid Property");
     }
 
     memoryData = it->second;
   }
 
-  if (commandType == "SET") {
-    return handleSetCommand(memoryData, stoi(trim(parts.at(2))));
-  } else if (commandType == "GET") {
-    return handleGetCommand(memoryData);
-  } else if (commandType == "GET_LOGS") {
-    return handleGetLogsCommand();
-  } else if (commandType == "GET_TEMPERATURE") {
-    return handleGetTemperatureCommand();
-  } else if (commandType == "SET_APP_MODE_AUTO") {
-    return handleSetAppModeAutoCommand();
-  } else if (commandType == "SET_APP_MODE_MANUAL") {
-    return handleSetAppModeManualCommand();
-  } else if (commandType == "CLEAR_WARNINGS") {
-    return handleClearWarningsCommand();
-  } else if (commandType == "GET_LAST_WEATHER_LOG") {
-    return handleGetLastWeatherLogCommand();
-  } else if (commandType == "FORCE_OPENING_WINDOW_CALCULATION") {
-    return handleForceOpeningWindowCalculationCommand();
-  } else {
-    return handleInvalidCommand();
+  // If any error exit execution
+  if (response.size() > 0) {
+    return make_tuple(response, String('ERROR'));
   }
+
+  if (commandType == "SET") {
+    response.push_back(handleSetCommand(memoryData, stoi(trim(parts.at(2)))));
+  } else if (commandType == "GET") {
+    response.push_back(handleGetCommand(memoryData));
+  } else if (commandType == "GET_LOGS") {
+    // Notification
+    response = handleGetLogsCommand(); // Multiple
+
+    return make_tuple(response, commandType.c_str());
+  } else if (commandType == "GET_TEMPERATURE") {
+    response.push_back(handleGetTemperatureCommand());
+  } else if (commandType == "SET_APP_MODE_AUTO") {
+    response.push_back(handleSetAppModeAutoCommand());
+  } else if (commandType == "SET_APP_MODE_MANUAL") {
+    response.push_back(handleSetAppModeManualCommand());
+  } else if (commandType == "CLEAR_WARNINGS") {
+    response.push_back(handleClearWarningsCommand());
+  } else if (commandType == "GET_LAST_WEATHER_LOG") {
+    response.push_back(handleGetLastWeatherLogCommand());
+  } else if (commandType == "FORCE_OPENING_WINDOW_CALCULATION") {
+    response.push_back(handleForceOpeningWindowCalculationCommand());
+  } else {
+    response.push_back(handleInvalidCommand());
+  }
+
+  return make_tuple(response, commandType.c_str());
 }
 
 vector<string> BluetoothWrapper::splitString(const String* command) {
@@ -223,10 +245,16 @@ String BluetoothWrapper::handleGetCommand(MemoryValue* memoryData) {
   return String(memoryValue);
 }
 
-String BluetoothWrapper::handleGetLogsCommand() {
+vector<String> BluetoothWrapper::handleGetLogsCommand() {
   vector<Log> lastLogs = getLastLogs(10);
+  vector<String> response;
 
   for (const auto& log: lastLogs) {
+    StaticJsonDocument<300> jsonDoc;
+    JsonArray jsonLogs = jsonDoc.createNestedArray("logs");
+
+    Serial.print("Date: ");
+    Serial.println(log.date);
     Serial.print("Temperature: ");
     Serial.println(log.temperature);
     Serial.print("WindowOpening: ");
@@ -234,9 +262,20 @@ String BluetoothWrapper::handleGetLogsCommand() {
     Serial.print("DeltaTemporaryWindowOpening: ");
     Serial.println(log.deltaTemporaryWindowOpening);
     Serial.println("----------------");
+
+    JsonObject jsonLogObject = jsonLogs.createNestedObject();
+    jsonLogObject["date"] = log.date;
+    jsonLogObject["temperature"] = log.temperature;
+    jsonLogObject["windowOpening"] = log.windowOpening;
+    jsonLogObject["deltaTemporaryWindowOpening"] = log.deltaTemporaryWindowOpening;
+
+    String jsonString;
+    serializeJson(jsonDoc, jsonString);
+
+    response.push_back(jsonString);
   }
 
-  return "TODO";
+  return response;
 }
 
 String BluetoothWrapper::handleGetTemperatureCommand() {
@@ -276,6 +315,17 @@ String BluetoothWrapper::handleGetLastWeatherLogCommand() {
     return "No weather logs available";
   }
 
+  StaticJsonDocument<200> jsonDoc;
+  JsonObject jsonLogObject = jsonDoc.createNestedObject();
+
+  jsonLogObject["forecastDate"] = weatherLog->forecastDate;
+  jsonLogObject["outsideTemperature"] = weatherLog->outsideTemperature;
+  jsonLogObject["windSpeed"] = weatherLog->windSpeed;
+  jsonLogObject["pm10"] = weatherLog->pm10;
+  jsonLogObject["pm10Date"] = weatherLog->pm10Date;
+  jsonLogObject["pm25"] = weatherLog->pm25;
+  jsonLogObject["pm25Date"] = weatherLog->pm25Date;
+
   Serial.print("forecastDate: ");
   Serial.println(weatherLog->forecastDate);
   Serial.print("outsideTemperature: ");
@@ -290,8 +340,11 @@ String BluetoothWrapper::handleGetLastWeatherLogCommand() {
   Serial.println(weatherLog->pm25);
   Serial.print("pm10Date: ");
   Serial.println(weatherLog->pm10Date);
+  
+  String jsonString;
+  serializeJson(jsonDoc, jsonString);
 
-  return "TODO";
+  return jsonString;
 }
 
 String BluetoothWrapper::handleForceOpeningWindowCalculationCommand() {

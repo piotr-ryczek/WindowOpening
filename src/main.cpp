@@ -54,8 +54,8 @@ TaskHandle_t WifiConnectionTask;
 TaskHandle_t WeatherForecastAndAirPollutionTask;
 TaskHandle_t WindowOpeningCalculationTask;
 TaskHandle_t DisplayTask;
-TaskHandle_t BluetoothCommandsTask;
 TaskHandle_t HttpTask;
+TaskHandle_t NTPTask;
 
 // Instances
 
@@ -157,13 +157,26 @@ void servosSmoothMovementTask(void *param) {
 unsigned long previousWindowOpeningCalculationMillis = 0;
 void windowOpeningCalculationTask(void *param) {
     while (true) {
+        // Checking if state has changed every second
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+        if (!hasNTPAlreadyConfigured) {
+            Serial.println("NTP not configured");
+            continue;
+        }
+
         unsigned long currentMillis = millis();
         uint16_t windowOpeningCalculationInterval = windowOpeningCalculationIntervalMemory.readValue(); // In seconds
 
         if (
-            AppMode == Auto && currentMillis - previousWindowOpeningCalculationMillis > windowOpeningCalculationInterval * 1000 // Auto mode interval
-            || forceOpeningWindowCalculation == true // Forcing execution
+            (
+                AppMode == Auto && 
+                currentMillis - previousWindowOpeningCalculationMillis > windowOpeningCalculationInterval * 1000
+            ) || // Auto mode interval
+            forceOpeningWindowCalculation == true // Forcing execution
         ) {
+            Serial.println("Calculating window opening");
+
             float currentTemperature = bme.readTemperature();
             auto [newWindowOpening, backendAppLog] = PIDController::calculateWindowOpening(currentTemperature);
 
@@ -198,9 +211,6 @@ void windowOpeningCalculationTask(void *param) {
                 forceOpeningWindowCalculation = false;
             }
         }
-
-        // Checking if state has changed every second
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
@@ -221,11 +231,6 @@ void weatherForecastAndAirPollutionTask(void *param) {
 void httpTask(void *param) {
     while (true) {
         vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
-
-        // TODO: Possibly to remove - should be connection existence checked?
-        // if (bluetoothWrapper.hasClient()) {
-        //     continue;
-        // }
 
         if (!httpQueriesQueue.empty()) {
             if (isHttpQueriesQueueOccupied) {
@@ -301,6 +306,8 @@ void wifiConnectionTask(void *param) {
             isWifiConnecting = true;
         }
 
+        Serial.println("Trying to connect to WiFi");
+
         auto wifiStatus = WiFi.status();
         
         if (wifiStatus == WL_CONNECTED) {
@@ -308,25 +315,42 @@ void wifiConnectionTask(void *param) {
             isWifiConnecting = false;
             Serial.println("WiFi Connected");
             client->setInsecure();
-
-            if (!hasNTPAlreadyConfigured) {
-                configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER_URL); // Synchronize time
-
-                if (getCurrentTime() == "") {
-                    continue;
-                } else {
-                    hasNTPAlreadyConfigured = true; // It happens only once
-                    Serial.println("Current time obtained");
-                    xTaskCreate(httpTask, "HttpTask", 10240, NULL, 5, &HttpTask);
-                }
-
-                vTaskDelay(3000 / portTICK_PERIOD_MS); // Delay for 3s to give a time to retrieve current time (for first time)
-            }
         } else {
             isWifiConnected = false;
             Serial.println("WiFi Connecting");
             Serial.print("WiFi Status:");
             Serial.println(wifiStatus);
+        }
+    }
+}
+
+void ntpTask(void *param) {
+    while (true) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
+
+        if (!isWifiConnected || hasNTPAlreadyConfigured) {
+            continue;
+        }
+
+        if (!isNTPUnderConfiguration) {
+            Serial.println("Starting NTP configuration");
+            isNTPUnderConfiguration = true;
+            configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER_URL); // Synchronize time
+        }
+
+        Serial.println("Trying to get current time");
+        if (getCurrentTime() == "") {
+            continue;
+        } else {
+            Serial.println("Current time obtained");
+            hasNTPAlreadyConfigured = true; // It happens only once
+
+            // Init first log (50 will be invalid value probably)
+            float initialTemperature = bme.readTemperature();
+            addLog(initialTemperature, 50, 0);
+
+            xTaskCreate(httpTask, "HttpTask", 10240, NULL, 5, &HttpTask);
+            vTaskDelete(NTPTask);
         }
     }
 }
@@ -362,10 +386,6 @@ void setup() {
 
     delay(100);
 
-    // Init first log (50 will be invalid value probably)
-    float initialTemperature = bme.readTemperature();
-    addLog(initialTemperature, 50, 0);
-
     ledWrapper.initialize();
 
     enterButton.initialize();
@@ -379,9 +399,11 @@ void setup() {
     xTaskCreate(warningsTask, "WarningsTask", 1536, NULL, 1, &WarningsTask);
     xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 1024, NULL, 1, &ServosSmoothMovementTask);
     xTaskCreate(displayTask, "displayTask", 1536, NULL, 1, &DisplayTask);
-    xTaskCreate(weatherForecastAndAirPollutionTask, "weatherForecastAndAirPollutionTask", 768, NULL, 1, &WeatherForecastAndAirPollutionTask);
+    xTaskCreate(weatherForecastAndAirPollutionTask, "weatherForecastAndAirPollutionTask", 1536, NULL, 1, &WeatherForecastAndAirPollutionTask);
     xTaskCreate(navigationTask, "NavigationTask", 2048, NULL, 1, &NavigationTask);
     xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 1, &WifiConnectionTask);
+    xTaskCreate(ntpTask, "NTPTask", 3072, NULL, 1, &NTPTask);
+    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 4096 , NULL, 1, &WindowOpeningCalculationTask);
 
     lcdWrapper.init();
 }

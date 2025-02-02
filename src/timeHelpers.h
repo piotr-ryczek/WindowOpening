@@ -5,7 +5,7 @@
 #include <time.h>
 
 String getCurrentTime();
-long int getSecondFromDateString(String date);
+long int getSecondsFromDateString(String date);
 float calculateHoursAhead(String dateToCompare); //From current time
 
 #endif

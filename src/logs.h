@@ -1,6 +1,7 @@
 #ifndef LOGS_H
 #define LOGS_H
 
+#include <Arduino.h>
 #include <vector>
 
 using namespace std;
@@ -8,6 +9,7 @@ using namespace std;
 const int MAX_LOGS = 10;
 
 struct Log {
+    String date;
     double temperature;
     int windowOpening;
     int deltaTemporaryWindowOpening;

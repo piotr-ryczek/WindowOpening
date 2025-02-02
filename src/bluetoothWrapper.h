@@ -21,7 +21,7 @@ class BluetoothWrapper {
 
     String handleSetCommand(MemoryValue* memoryData, int value);
     String handleGetCommand(MemoryValue* memoryData);
-    String handleGetLogsCommand();
+    vector<String> handleGetLogsCommand();
     String handleGetTemperatureCommand();
     String handleSetAppModeAutoCommand();
     String handleSetAppModeManualCommand();
@@ -33,7 +33,7 @@ class BluetoothWrapper {
   public:
     BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp);
     void init();
-    String handleCommand(String* message);
+    tuple<vector<String>, String> handleCommand(String* message);
 };
 
 #endif

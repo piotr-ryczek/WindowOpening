@@ -9,6 +9,7 @@ extern const bool WEATHER_FORECAST_ENABLED;
 // Flags
 extern bool forceOpeningWindowCalculation;
 extern bool hasNTPAlreadyConfigured;
+extern bool isNTPUnderConfiguration;
 extern bool isWifiConnected;
 extern bool isWifiConnecting;
 extern bool shouldTryToConnectToWifi;

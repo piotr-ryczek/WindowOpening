@@ -4,6 +4,7 @@ AppModeEnum AppMode = Manual; // Always initializing with Manual for security re
 const bool WEATHER_FORECAST_ENABLED = true;
 bool forceOpeningWindowCalculation = false; // Flag to recalculate manually WindowOpening any time
 bool hasNTPAlreadyConfigured = false; // Can be changed only once
+bool isNTPUnderConfiguration = false;
 bool isWifiConnected = false;
 bool isWifiConnecting = false;
 bool shouldTryToConnectToWifi = false;

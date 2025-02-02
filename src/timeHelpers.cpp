@@ -5,7 +5,7 @@
 
 using namespace std;
 
-long int getSecondFromDateString(String date) {
+long int getSecondsFromDateString(String date) {
     char dateBuffer[64];
     date.toCharArray(dateBuffer, sizeof(dateBuffer));
 
@@ -17,11 +17,16 @@ long int getSecondFromDateString(String date) {
 }
 
 String getCurrentTime() {
-    char buffer[64];
+    char buffer[128];
     struct tm currentTime;
 
     if (!getLocalTime(&currentTime)) {
         Serial.println("Failed to obtain current time");
+        return "";
+    }
+
+    if (currentTime.tm_year < 70) { 
+        Serial.println("Invalid time data");
         return "";
     }
 
@@ -40,8 +45,8 @@ float calculateHoursAhead(String dateToCompare) {
         return false;
     }
 
-    long int currentTimeSeconds = getSecondFromDateString(currentTime);
-    long int dateToCompareSeconds = getSecondFromDateString(dateToCompare);
+    long int currentTimeSeconds = getSecondsFromDateString(currentTime);
+    long int dateToCompareSeconds = getSecondsFromDateString(dateToCompare);
 
     float secondsDiff = dateToCompareSeconds - currentTimeSeconds;
 

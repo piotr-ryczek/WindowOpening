@@ -155,9 +155,9 @@ namespace PIDController {
         Serial.println("Window Opening Calculation started");
 
         // Retrieving information from memory and pass it to other functions for calculations
+        Serial.println("Getting data from memory");
         ConfigMetadata configMetadata;
         getDataFromMemory(configMetadata);
-        
 
         // BackendApp Log
         BackendAppLog backendAppLog;
@@ -167,15 +167,21 @@ namespace PIDController {
         backendAppLog.pm25 = nullptr;
         backendAppLog.pm10 = nullptr;
 
+        Serial.println("Attaching config data");
         attachConfigData(backendAppLog, configMetadata);
 
         // Retrieve last log to compare
+        Serial.println("Retrieving last log");
         Log lastLog = logs.back();
 
         // Calculate all terms values
+        Serial.println("Calculating proportional term value");
         double proportionalTermValue = calculateProportionalTermValue(newTemperature, configMetadata); // Reacting to difference size
+        Serial.println("Calculating integral term value");
         double integralTermValue = calculateIntegralTermValue(newTemperature, configMetadata); // Reacting to difference accumulated in time (last 10 logs)
+        Serial.println("Calculating derivative term value");
         double derivativeTermValue = calculateDerivativeTermValue(newTemperature, configMetadata); // Reacting to quickness of change
+        Serial.println("Calculating opening term value");
         double openingTermValue = calculateOpeningTermValue(newTemperature, configMetadata); // Boost opening if temperature above Optimal; or a bit if negative (below optimal) close to Optimal
 
         // BackendApp Log
@@ -191,10 +197,13 @@ namespace PIDController {
             derivativeTermValue + 
             openingTermValue;
 
+        Serial.println("Getting last weather log");
         WeatherLog* lastWeatherLog = getLastWeatherLogNotTooOld(WEATHER_LOG_NOT_OLDER_THAN_HOURS);
 
         if (lastWeatherLog != nullptr) {
+            Serial.println("Calculating outside temperature term value");
             double outsideTemperatureTermValue = calculateOutsideTemperatureTermValue(lastWeatherLog->outsideTemperature, configMetadata);
+            Serial.println("Calculating air pollution term value");
             double airPollutionTermValue = calculateAirPollutionTermValue(lastWeatherLog->pm25, lastWeatherLog->pm10);
 
             newOpeningDiff += outsideTemperatureTermValue;
@@ -220,14 +229,16 @@ namespace PIDController {
         // BackendApp Log
         backendAppLog.deltaFinalWindowOpening = newOpeningDiff;
 
+        Serial.println("Limiting window opening from extremes");
         int newWindowOpening = limitFromExtremes(lastLog.windowOpening + newOpeningDiff);
 
         // BackendApp Log
         backendAppLog.windowOpening = newWindowOpening;
-        
+
         // Add new log to history
         addLog(newTemperature, newWindowOpening, backendAppLog.deltaTemporaryWindowOpening);
 
+        Serial.println("Returning new window opening");
         return make_tuple(10, backendAppLog);
     }
 }

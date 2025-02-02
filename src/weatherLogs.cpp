@@ -48,6 +48,6 @@ WeatherLog* getLastWeatherLogNotTooOld(double maxHoursOld) {
     ) {
         return nullptr;
     }
-    
+
     return lastWeatherLog;
 }
