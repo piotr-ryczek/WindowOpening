@@ -13,6 +13,7 @@ extern bool isNTPUnderConfiguration;
 extern bool isWifiConnected;
 extern bool isWifiConnecting;
 extern bool shouldTryToConnectToWifi;
+extern bool isBLEClientConnected;
 
 extern const int GMT_OFFSET_SEC;
 extern const int DAYLIGHT_OFFSET_SEC;

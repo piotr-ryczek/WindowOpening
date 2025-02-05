@@ -201,7 +201,7 @@ void Navigation::handleForward() {
                 }
 
                 case MainMenuMoveBothServosSmoothly: {
-                    this->moveBothServoSmoothlyTo(); // Set new target
+                    this->moveBothServosSmoothlyTo(); // Set new target
                     break;
                 }
 
@@ -552,7 +552,7 @@ void Navigation::moveServoSmoothlyTo() {
     selectedServo->setMovingSmoothlyTarget(servoPosition);
 }
 
-void Navigation::moveBothServoSmoothlyTo() {
+void Navigation::moveBothServosSmoothlyTo() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoPosition = translateAnalogTo100Range(value); // 0 - 100
 

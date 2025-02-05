@@ -8,6 +8,7 @@ bool isNTPUnderConfiguration = false;
 bool isWifiConnected = false;
 bool isWifiConnecting = false;
 bool shouldTryToConnectToWifi = false;
+bool isBLEClientConnected = false;
 
 const int GMT_OFFSET_SEC = 3600;
 const int DAYLIGHT_OFFSET_SEC = 3600;

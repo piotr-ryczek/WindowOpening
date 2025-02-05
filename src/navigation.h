@@ -120,7 +120,7 @@ class Navigation {
 
         // Servo
         void moveServoSmoothlyTo();
-        void moveBothServoSmoothlyTo(); // There is no delay between move beginning (in opposite to AutoMode real windowOpening adaptation)
+        void moveBothServosSmoothlyTo(); // There is no delay between move beginning (in opposite to AutoMode real windowOpening adaptation)
 
         // Other
         uint16_t getPotentiometerValue();

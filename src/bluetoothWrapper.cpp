@@ -6,17 +6,19 @@
 #include <vector>
 #include <BLEDevice.h>
 #include <BLEUtils.h>
-#include <BLEServer.h>
 #include <ArduinoJson.h>
+#include <BLE2902.h>
 
 #include <bluetoothWrapper.h>
 #include <secrets.h>
 #include <config.h>
 #include <logs.h>
 #include <memoryData.h>
+#include <helpers.h>
 
 using namespace std;
 
+vector<String> BLEQueue;
 unordered_map<string, MemoryValue*> settingsMemory;
 vector<string> commandTypes = {
   "GET", // GET PROPERTY_NAME
@@ -27,18 +29,21 @@ vector<string> commandTypes = {
   "SET_APP_MODE_MANUAL", 
   "GET_LAST_WEATHER_LOG",
   "CLEAR_WARNINGS",
-  "FORCE_OPENING_WINDOW_CALCULATION"
+  "FORCE_OPENING_WINDOW_CALCULATION",
+  "MOVE_BOTH_SERVOS_SMOOTHLY_TO",
 };
 
-BluetoothWrapper::BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp): bme(bme), backgroundApp(backgroundApp) {}
+BluetoothWrapper::BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp, ServoWrapper* servoPullOpen, ServoWrapper* servoPullClose): bme(bme), backgroundApp(backgroundApp), servoPullOpen(servoPullOpen), servoPullClose(servoPullClose) {}
 
 class WindowOpeningBLEServerCallbacks : public BLEServerCallbacks {
   public:
     void onConnect(BLEServer* pServer) override {
+        isBLEClientConnected = true;
         Serial.println("Client connected");
     }
 
     void onDisconnect(BLEServer* pServer) override {
+      isBLEClientConnected = false;
       pServer->startAdvertising();
       Serial.println("Client disconnected");
     }
@@ -54,26 +59,34 @@ class WindowOpeningBLECharacteristicCallbacks : public BLECharacteristicCallback
     WindowOpeningBLECharacteristicCallbacks() {}
 
     void onWrite(BLECharacteristic* pCharacteristic) override {
-        std::string value = pCharacteristic->getValue();
-        Serial.print("BLE Received: ");
-        Serial.println(value.c_str());
+      if (!bluetoothWrapper) {
+          Serial.println("BluetoothWrapper is not initialized");
+          return;
+      }
 
-        value.erase(std::remove(value.begin(), value.end(), '\n'), value.end());
-        value.erase(std::remove(value.begin(), value.end(), '\r'), value.end());
+      std::string value = pCharacteristic->getValue();
+      Serial.print("BLE Received: ");
+      Serial.println(value.c_str());
 
-        auto [response, commandType] = bluetoothWrapper->handleCommand(new String(value.c_str()));
+      value.erase(std::remove(value.begin(), value.end(), '\n'), value.end());
+      value.erase(std::remove(value.begin(), value.end(), '\r'), value.end());
 
-        for (const auto& item : response) {
-          StaticJsonDocument<400> jsonDoc;
-          JsonObject jsonObject = jsonDoc.createNestedObject();
-          jsonObject["commandType"] = commandType;
-          jsonObject["data"] = item;
+      String valueString = value.c_str();
+      auto [response, commandType] = bluetoothWrapper->handleCommand(&valueString);
 
-          String jsonString;
-          serializeJson(jsonDoc, jsonString);
-          pCharacteristic->setValue(jsonString.c_str());
-          pCharacteristic->notify();
-        }
+      for (const auto& item : response) {
+        StaticJsonDocument<400> jsonDoc;
+        JsonObject jsonObject = jsonDoc.createNestedObject();
+        jsonObject["commandType"] = commandType;
+        jsonObject["data"] = item;
+
+        String jsonString;
+        serializeJson(jsonDoc, jsonString);
+
+        // noInterrupts();
+        BLEQueue.push_back(jsonString);
+        // interrupts();
+      }
     }
 };
 
@@ -81,10 +94,12 @@ void BluetoothWrapper::init() {
   BLEDevice::init(BLE_NAME);
   BLEServer *pServer = BLEDevice::createServer();
   BLEService *pService = pServer->createService(BLE_SERVICE_UUID);
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic(BLE_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
+  this->pCharacteristic = pService->createCharacteristic(BLE_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_INDICATE | BLECharacteristic::PROPERTY_NOTIFY);
+
+  this->pCharacteristic->addDescriptor(new BLE2902());
 
   pServer->setCallbacks(new WindowOpeningBLEServerCallbacks());
-  pCharacteristic->setCallbacks(new WindowOpeningBLECharacteristicCallbacks(this));
+  this->pCharacteristic->setCallbacks(new WindowOpeningBLECharacteristicCallbacks(this));
   pService->start();
 
   BLEAdvertising *pAdvertising = pServer->getAdvertising();
@@ -105,6 +120,20 @@ void BluetoothWrapper::init() {
   Serial.println("Bluetooth initialized. Ready for pairing");
 }
 
+void BluetoothWrapper::checkQueue() {
+  if (BLEQueue.empty()) return;
+
+  String firstMessage = BLEQueue.front();
+  const char* firstMessageChar = firstMessage.c_str();
+
+  Serial.println("Notify BLE with: ");
+  Serial.println(firstMessageChar);
+
+  this->pCharacteristic->setValue(firstMessageChar);
+  this->pCharacteristic->notify();
+  BLEQueue.erase(BLEQueue.begin());
+}
+
 tuple<vector<String>, String> BluetoothWrapper::handleCommand(String* message) {
   Serial.print("Bluetooth data received: ");
   Serial.println(message->c_str());
@@ -117,7 +146,7 @@ tuple<vector<String>, String> BluetoothWrapper::handleCommand(String* message) {
     response.push_back("Invalid Command: Zero Parts");
 }
 
-  if (parts.size() < 1 && parts.size() > 3) {
+  if (parts.size() < 1 || parts.size() > 3) {
     Serial.println("Not processing bluetooth command: less than 1 or more than 3 parts");
     response.push_back("Invalid Command: Less than 1 or more than 3 parts");
   }
@@ -125,6 +154,7 @@ tuple<vector<String>, String> BluetoothWrapper::handleCommand(String* message) {
   string commandType = trim(parts.at(0));
 
   MemoryValue* memoryData = nullptr;
+  uint8_t newServosPosition;
 
   if (commandType == "SET" || commandType == "GET") {
     string property = trim(parts.at(1));
@@ -137,6 +167,15 @@ tuple<vector<String>, String> BluetoothWrapper::handleCommand(String* message) {
     }
 
     memoryData = it->second;
+  }
+
+  if (commandType == "MOVE_BOTH_SERVOS_SMOOTHLY_TO") {
+    try {
+      newServosPosition = convertStringToUint8t(trim(parts.at(1)));
+    } catch (std::invalid_argument& error) {
+      Serial.println(error.what());
+      response.push_back(error.what());
+    }
   }
 
   // If any error exit execution
@@ -165,6 +204,8 @@ tuple<vector<String>, String> BluetoothWrapper::handleCommand(String* message) {
     response.push_back(handleGetLastWeatherLogCommand());
   } else if (commandType == "FORCE_OPENING_WINDOW_CALCULATION") {
     response.push_back(handleForceOpeningWindowCalculationCommand());
+  } else if (commandType == "MOVE_BOTH_SERVOS_SMOOTHLY_TO") {
+    response.push_back(handleMoveBothServosSmoothlyTo(newServosPosition));
   } else {
     response.push_back(handleInvalidCommand());
   }
@@ -352,6 +393,15 @@ String BluetoothWrapper::handleForceOpeningWindowCalculationCommand() {
 
   Serial.println("Opening Window Calculation Forced");
   return "Opening Window Calculation Forced";
+}
+
+String BluetoothWrapper::handleMoveBothServosSmoothlyTo(uint8_t newPosition) {
+  servoPullOpen->setMovingSmoothlyTarget(newPosition);
+  servoPullClose->setMovingSmoothlyTarget(newPosition);
+
+  Serial.print("New target set up: ");
+  Serial.println(newPosition);
+  return "New target set up to: " + String(newPosition);
 }
 
 String BluetoothWrapper::handleInvalidCommand() {

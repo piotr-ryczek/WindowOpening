@@ -56,6 +56,7 @@ TaskHandle_t WindowOpeningCalculationTask;
 TaskHandle_t DisplayTask;
 TaskHandle_t HttpTask;
 TaskHandle_t NTPTask;
+TaskHandle_t BLETask;
 
 // Instances
 
@@ -81,7 +82,7 @@ BackendApp backendApp(&httpClient, &backgroundApp);
 
 Adafruit_BME280 bme;
 
-BluetoothWrapper bluetoothWrapper(&bme, &backgroundApp);
+BluetoothWrapper bluetoothWrapper(&bme, &backgroundApp, &servoPullOpenWrapper, &servoPullCloseWrapper);
 
 enum HttpQueryTypeEnum { BackendAppWeatherForecastAndAirPollutionQueries, BackendAppSaveLogQuery };
 
@@ -363,6 +364,16 @@ void displayTask(void *param) {
     }
 }
 
+void bleTask(void *param) {
+    while (true) {
+        if (isBLEClientConnected) {
+            bluetoothWrapper.checkQueue();
+        }
+
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
+}
+
 void setup() {
     Wire.begin(LCD_SDA_GPIO, LCD_SCL_GPIO);
     Serial.begin(115200);
@@ -404,6 +415,7 @@ void setup() {
     xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 1, &WifiConnectionTask);
     xTaskCreate(ntpTask, "NTPTask", 3072, NULL, 1, &NTPTask);
     xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 4096 , NULL, 1, &WindowOpeningCalculationTask);
+    xTaskCreate(bleTask, "BLETask", 3072 , NULL, 1, &BLETask);
 
     lcdWrapper.init();
 }
