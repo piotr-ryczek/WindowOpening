@@ -106,16 +106,16 @@ void BluetoothWrapper::init() {
   pAdvertising->start();
 
   settingsMemory["OPTIMAL_TEMPERATURE"] = &optimalTemperatureMemory;
-  settingsMemory["P_TERM_POSITIVE"] = &pTermPositive;
-  settingsMemory["P_TERM_NEGATIVE"] = &pTermNegative;
-  settingsMemory["D_TERM_POSITIVE"] = &dTermPositive;
-  settingsMemory["D_TERM_NEGATIVE"] = &dTermNegative;
-  settingsMemory["O_TERM_POSITIVE"] = &oTermPositive;
-  settingsMemory["O_TERM_NEGATIVE"] = &oTermNegative;
-  settingsMemory["I_TERM"] = &iTerm;
+  settingsMemory["P_TERM_POSITIVE"] = &pTermPositiveMemory;
+  settingsMemory["P_TERM_NEGATIVE"] = &pTermNegativeMemory;
+  settingsMemory["D_TERM_POSITIVE"] = &dTermPositiveMemory;
+  settingsMemory["D_TERM_NEGATIVE"] = &dTermNegativeMemory;
+  settingsMemory["O_TERM_POSITIVE"] = &oTermPositiveMemory;
+  settingsMemory["O_TERM_NEGATIVE"] = &oTermNegativeMemory;
+  settingsMemory["I_TERM"] = &iTermMemory;
   settingsMemory["CHANGE_DIFF_THRESHOLD"] = &changeDiffThresholdMemory;
   settingsMemory["WINDOW_OPENING_CALCULATION_INTERVAL"] = &windowOpeningCalculationIntervalMemory;
-  settingsMemory["OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE"] = &openingTermPositiveTemperatureIncrease;
+  settingsMemory["OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE"] = &openingTermPositiveTemperatureIncreaseMemory;
 
   Serial.println("Bluetooth initialized. Ready for pairing");
 }

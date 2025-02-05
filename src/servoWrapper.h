@@ -30,6 +30,8 @@ class ServoWrapper {
         void moveTo(uint8_t newPosition); // 0 - 100
         void moveSmoothly();
         void setMovingSmoothlyTarget(uint8_t newPosition); // 0 - 100
+        uint8_t getCurrentPosition(); // 0-100
+
 };
 
 #endif

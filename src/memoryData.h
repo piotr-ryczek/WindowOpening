@@ -70,24 +70,24 @@ extern MemoryValue servoPullCloseCalibrationMaxMemory;
 // Settings
 extern MemoryValue optimalTemperatureMemory;
 
-extern MemoryValue pTermPositive;
+extern MemoryValue pTermPositiveMemory;
 
-extern MemoryValue pTermNegative;
+extern MemoryValue pTermNegativeMemory;
 
-extern MemoryValue dTermPositive;
+extern MemoryValue dTermPositiveMemory;
 
-extern MemoryValue dTermNegative;
+extern MemoryValue dTermNegativeMemory;
 
-extern MemoryValue oTermPositive;
+extern MemoryValue oTermPositiveMemory;
 
-extern MemoryValue oTermNegative;
+extern MemoryValue oTermNegativeMemory;
 
-extern MemoryValue iTerm;
+extern MemoryValue iTermMemory;
 
 extern MemoryValue changeDiffThresholdMemory;
 
 extern MemoryValue windowOpeningCalculationIntervalMemory;
 
-extern MemoryValue openingTermPositiveTemperatureIncrease;
+extern MemoryValue openingTermPositiveTemperatureIncreaseMemory;
 
 #endif

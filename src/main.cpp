@@ -190,10 +190,24 @@ void windowOpeningCalculationTask(void *param) {
 
             httpQueriesQueue.push_back(queueItem);
 
-            Log lastLog = logs.back();
+            uint8_t servoPullClosePosition = servoPullCloseWrapper.getCurrentPosition();
+            uint8_t servoPullOpenPosition = servoPullOpenWrapper.getCurrentPosition();
 
-            if (newWindowOpening != lastLog.windowOpening) {
-                boolean isWindowOpening = newWindowOpening > lastLog.windowOpening; // Closing or Opening
+            Serial.print("servoPullClosePosition: ");
+            Serial.println(servoPullClosePosition);
+            Serial.print("servoPullOpenPosition: ");
+            Serial.println(servoPullOpenPosition);
+
+            uint8_t servosAvaragePosition = (servoPullClosePosition + servoPullOpenPosition) / 2;
+
+            Serial.print("servosAvaragePosition: ");
+            Serial.println(servosAvaragePosition);
+
+            if (abs(newWindowOpening - servosAvaragePosition) > 2) {
+                boolean isWindowOpening = newWindowOpening > servosAvaragePosition; // Closing or Opening
+
+                Serial.print("WindowCalculationTask: New Window Opening: ");
+                Serial.println(newWindowOpening);
 
                 if (isWindowOpening) {
                     servoPullCloseWrapper.setMovingSmoothlyTarget(newWindowOpening);

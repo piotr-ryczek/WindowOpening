@@ -83,8 +83,7 @@ void ServoWrapper::moveSmoothly() {
 }
 
 void ServoWrapper::setMovingSmoothlyTarget(uint8_t newPosition) {
-    uint8_t currentPositionInDegrees = readFromServo();
-    uint8_t currentPosition = translateFromDegreesTo100(currentPositionInDegrees);
+    uint8_t currentPosition = getCurrentPosition();
 
     this->movingSmoothlyTarget = newPosition;
     this->movingSmoothlyCurrentPosition = currentPosition;
@@ -145,3 +144,9 @@ uint8_t ServoWrapper::translateFromDegreesTo100(uint8_t positionInDegrees) {
     return positionDiff * 100 / distance;
 }
 
+uint8_t ServoWrapper::getCurrentPosition() {
+    uint8_t currentPositionInDegrees = readFromServo();
+    uint8_t currentPosition = translateFromDegreesTo100(currentPositionInDegrees);
+
+    return currentPosition;
+}

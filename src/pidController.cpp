@@ -143,12 +143,26 @@ namespace PIDController {
 
     void getDataFromMemory(ConfigMetadata& configMetadata) {
         int optimalTemperature = optimalTemperatureMemory.readValue();
-
-
         int changeDiffThreshold = changeDiffThresholdMemory.readValue();
+        int pTermPositive = pTermPositiveMemory.readValue();
+        int pTermNegative = pTermNegativeMemory.readValue();
+        int dTermPositive = dTermPositiveMemory.readValue();
+        int dTermNegative = dTermNegativeMemory.readValue();
+        int oTermPositive = oTermPositiveMemory.readValue();
+        int oTermNegative = oTermNegativeMemory.readValue();
+        int iTerm = iTermMemory.readValue();
+        int openingTermPositiveTemperatureIncrease = openingTermPositiveTemperatureIncreaseMemory.readValue();
 
         configMetadata.optimalTemperature = optimalTemperature;
         configMetadata.changeDiffThreshold = changeDiffThreshold;
+        configMetadata.pTermPositive = pTermPositive;
+        configMetadata.pTermNegative = pTermNegative;
+        configMetadata.dTermPositive = dTermPositive;
+        configMetadata.dTermNegative = dTermNegative;
+        configMetadata.oTermPositive = oTermPositive;
+        configMetadata.oTermNegative = oTermNegative;
+        configMetadata.iTerm = iTerm;
+        configMetadata.openingTermPositiveTemperatureIncrease = openingTermPositiveTemperatureIncrease;
     }
 
     tuple<int, BackendAppLog> calculateWindowOpening(double newTemperature) {
@@ -175,14 +189,18 @@ namespace PIDController {
         Log lastLog = logs.back();
 
         // Calculate all terms values
-        Serial.println("Calculating proportional term value");
+        Serial.print("Calculating: P Term (Proportional) value: ");
         double proportionalTermValue = calculateProportionalTermValue(newTemperature, configMetadata); // Reacting to difference size
-        Serial.println("Calculating integral term value");
+        Serial.println(proportionalTermValue);
+        Serial.print("Calculating: I Term (Integral) value: ");
         double integralTermValue = calculateIntegralTermValue(newTemperature, configMetadata); // Reacting to difference accumulated in time (last 10 logs)
-        Serial.println("Calculating derivative term value");
+        Serial.println(integralTermValue);
+        Serial.print("Calculating: D Term (Derivative) value: ");
         double derivativeTermValue = calculateDerivativeTermValue(newTemperature, configMetadata); // Reacting to quickness of change
-        Serial.println("Calculating opening term value");
+        Serial.println(derivativeTermValue);
+        Serial.print("Calculating: O Term (Opening) value: ");
         double openingTermValue = calculateOpeningTermValue(newTemperature, configMetadata); // Boost opening if temperature above Optimal; or a bit if negative (below optimal) close to Optimal
+        Serial.println(openingTermValue);
 
         // BackendApp Log
         backendAppLog.partialData.proportionalTermValue = proportionalTermValue;
@@ -201,10 +219,12 @@ namespace PIDController {
         WeatherLog* lastWeatherLog = getLastWeatherLogNotTooOld(WEATHER_LOG_NOT_OLDER_THAN_HOURS);
 
         if (lastWeatherLog != nullptr) {
-            Serial.println("Calculating outside temperature term value");
+            Serial.print("Calculating: Outside Temperature Term value: ");
             double outsideTemperatureTermValue = calculateOutsideTemperatureTermValue(lastWeatherLog->outsideTemperature, configMetadata);
-            Serial.println("Calculating air pollution term value");
+            Serial.println(outsideTemperatureTermValue);
+            Serial.print("Calculating: Air Pollution Term value: ");
             double airPollutionTermValue = calculateAirPollutionTermValue(lastWeatherLog->pm25, lastWeatherLog->pm10);
+            Serial.println(airPollutionTermValue);
 
             newOpeningDiff += outsideTemperatureTermValue;
             newOpeningDiff += airPollutionTermValue;
@@ -218,6 +238,9 @@ namespace PIDController {
             backendAppLog.pm10 = &lastWeatherLog->pm10;
         }
 
+        Serial.print("Calculated NewOpeningDiff: ");
+        Serial.println(newOpeningDiff);
+
         // BackendApp Log
         backendAppLog.deltaTemporaryWindowOpening = newOpeningDiff;
 
@@ -225,6 +248,9 @@ namespace PIDController {
         if (abs(newOpeningDiff) < configMetadata.changeDiffThreshold) {
             newOpeningDiff = 0;
         }
+
+        Serial.print("NewOpeningDiff after changeDiffThreshold: ");
+        Serial.println(newOpeningDiff);
 
         // BackendApp Log
         backendAppLog.deltaFinalWindowOpening = newOpeningDiff;
@@ -238,7 +264,6 @@ namespace PIDController {
         // Add new log to history
         addLog(newTemperature, newWindowOpening, backendAppLog.deltaTemporaryWindowOpening);
 
-        Serial.println("Returning new window opening");
-        return make_tuple(10, backendAppLog);
+        return make_tuple(newWindowOpening, backendAppLog);
     }
 }
