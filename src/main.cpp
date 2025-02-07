@@ -246,24 +246,31 @@ void weatherForecastAndAirPollutionTask(void *param) {
 void httpTask(void *param) {
     while (true) {
         vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
+        Serial.println("HttpTask Wywolanie");
 
         if (!httpQueriesQueue.empty()) {
+            Serial.println("!httpQueriesQueue.empty()");
             if (isHttpQueriesQueueOccupied) {
+                Serial.println("isHttpQueriesQueueOccupied");
                 continue;
             }
 
             if (!isWifiConnected && !isWifiConnecting) {
+                Serial.println("!isWifiConnected && !isWifiConnecting");
                 initWifi();
                 continue;
             }
 
             if (!isWifiConnected) {
+                 Serial.println("!isWifiConnected");
                 continue;
             }
 
             isHttpQueriesQueueOccupied = true;
 
+            Serial.println("Pobranie Zadania");
             HttpQueryQueueItem olderQueryInQueue = httpQueriesQueue.front();
+            Serial.println("Zakonczenie Zadania");
 
             switch (olderQueryInQueue.type) {
                 case BackendAppWeatherForecastAndAirPollutionQueries: {
@@ -299,7 +306,10 @@ void httpTask(void *param) {
             httpQueriesQueue.erase(httpQueriesQueue.begin());
             isHttpQueriesQueueOccupied = false;
 
+
+            Serial.println("Przed Disconnect WIFI");
             disconnectWifi();
+            Serial.println("Po Disconnect WIFI");
         }
     }
 }

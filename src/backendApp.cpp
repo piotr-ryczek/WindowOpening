@@ -14,7 +14,7 @@ void BackendApp::addHeaders() {
 }
 
 void BackendApp::saveLogToApp(BackendAppLog* logData) {
-   Serial.println("Trying to query Adding Log");
+   Serial.println("Saving log to Backend: Trying to query Adding Log");
 
   if (!httpClient->begin(BACKEND_APP_URL)) {
     Serial.println("Failed to connect to BackendApp");
@@ -79,7 +79,7 @@ void BackendApp::saveLogToApp(BackendAppLog* logData) {
     doc["partialData"]["airPollutionTermValue"] = *logData->partialData.airPollutionTermValue;
   }
   
-  Serial.println("Adding Log: Serialize JSON");
+  Serial.println("Saving log to Backend: Serialize JSON");
 
   String payload;
   serializeJson(doc, payload);
@@ -99,7 +99,7 @@ void BackendApp::saveLogToApp(BackendAppLog* logData) {
     backgroundApp->removeWarning(BACKEND_HTTP_REQUEST_FAILED);
   }
 
-  Serial.println("BackendApp Adding Log: Query finished");
+  Serial.println("Saving log to Backend: Query finished");
 
   httpClient->end();
 }

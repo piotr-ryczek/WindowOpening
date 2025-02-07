@@ -4,13 +4,13 @@
 vector<Log> logs;
 
 void addLog(double temperature, int windowOpening, int deltaTemporaryWindowOpening) {
-    Serial.println("Adding log to history");
+    Serial.println("Adding log locally: to history");
     Log newLog;
 
     String currentTime = getCurrentTime();
 
     if (currentTime == "") {
-        Serial.println("Aborting adding log - current time is empty");
+        Serial.println("Aborting adding log locally - current time is empty");
         return;
     }
 
@@ -22,7 +22,7 @@ void addLog(double temperature, int windowOpening, int deltaTemporaryWindowOpeni
     newLog.windowOpening = windowOpening;
     newLog.deltaTemporaryWindowOpening = deltaTemporaryWindowOpening;
 
-    Serial.println("Adding log: ");
+    Serial.println("Adding log locally: Data:");
     Serial.print("Date: ");
     Serial.println(newLog.date);
     Serial.print("Temperature: ");
