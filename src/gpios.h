@@ -26,4 +26,6 @@ const byte BME_280_SCL_GPIO = 19;
 const byte LCD_SDA_GPIO = 17;
 const byte LCD_SCL_GPIO = 16;
 
+const byte BATTERY_VOLTAGE_METER_GPIO = 13;
+
 #endif

@@ -11,7 +11,7 @@
 #include <backgroundApp.h>
 #include <weatherLogs.h>
 #include <servoWrapper.h>
-
+#include <batteryVoltageMeter.h>
 using namespace std;
 
 class BluetoothWrapper {
@@ -21,6 +21,7 @@ class BluetoothWrapper {
     BackgroundApp* backgroundApp;
     ServoWrapper* servoPullOpen;
     ServoWrapper* servoPullClose;
+    BatteryVoltageMeter* batteryVoltageMeter;
 
     vector<string> splitString(const String* command);
     string trim(const string& str);
@@ -35,11 +36,12 @@ class BluetoothWrapper {
     String handleGetLastWeatherLogCommand();
     String handleForceOpeningWindowCalculationCommand();
     String handleMoveBothServosSmoothlyTo(uint8_t newPosition);
+    String handleGetBatteryVoltageCommand();
 
     String handleInvalidCommand();
 
   public:
-    BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp, ServoWrapper* servoPullOpen, ServoWrapper* servoPullClose);
+    BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp, ServoWrapper* servoPullOpen, ServoWrapper* servoPullClose, BatteryVoltageMeter* batteryVoltageMeter);
     void init();
     tuple<vector<String>, String> handleCommand(String* message);
     void checkQueue();

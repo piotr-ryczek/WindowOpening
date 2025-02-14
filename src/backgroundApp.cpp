@@ -12,7 +12,18 @@ void BackgroundApp::addWarning(WarningEnum warning) {
 }
 
 void BackgroundApp::removeWarning(WarningEnum warning) {
-    warnings.erase(warning);
+    auto it = warnings.find(warning);
+    if (it != warnings.end()) {
+        auto nextIt = next(it);
+
+        warnings.erase(it);
+
+        if (nextIt != warnings.end()) {
+            currentWarningDisplayedIndex = nextIt;
+        } else {
+            currentWarningDisplayedIndex = warnings.begin();
+        }
+    }
 }
 
 void BackgroundApp::displayLedColorByWarning(WarningEnum warning) {
@@ -56,11 +67,13 @@ void BackgroundApp::handleWarningsDisplay() {
     isLedActive = !isLedActive;
 
     if (isLedActive) {
-
-        currentWarningDisplayedIndex++;
-
-        if (currentWarningDisplayedIndex == warnings.end()) {
+         if (warnings.find(*currentWarningDisplayedIndex) == warnings.end()) {
             currentWarningDisplayedIndex = warnings.begin();
+        } else {
+            currentWarningDisplayedIndex++;
+            if (currentWarningDisplayedIndex == warnings.end()) {
+                currentWarningDisplayedIndex = warnings.begin();
+            }
         }
 
         displayLedColorByWarning(*currentWarningDisplayedIndex);
@@ -90,13 +103,8 @@ void BackgroundApp::checkForWeatherWarning(vector<WeatherItem> weatherItems) {
 }
 
 void BackgroundApp::clearWarnings() {
-    this->removeWarning(NONE_WARNING);
-    this->removeWarning(LOW_BATTERY);
-    this->removeWarning(WEATHER_DANGEROUS);
-    this->removeWarning(WIFI_FAILED);
-    this->removeWarning(BACKEND_HTTP_REQUEST_FAILED);
-    this->removeWarning(WEATHER_FORECAST_HTTP_REQUEST_FAILED);
-    this->removeWarning(AIR_POLLUTION_HTTP_REQUEST_FAILED);
+    warnings.clear();
+    currentWarningDisplayedIndex = warnings.begin();
 }
 
 String BackgroundApp::translateWarningEnumToString(WarningEnum warning) {

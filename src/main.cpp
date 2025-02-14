@@ -27,6 +27,7 @@
 #include <backendApp.h>
 #include <lcdWrapper.h>
 #include <bluetoothWrapper.h>
+#include <batteryVoltageMeter.h>
 #include <timeHelpers.h>
 
 /**
@@ -57,7 +58,7 @@ TaskHandle_t DisplayTask;
 TaskHandle_t HttpTask;
 TaskHandle_t NTPTask;
 TaskHandle_t BLETask;
-
+TaskHandle_t BatteryMeterTask;
 // Instances
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -66,6 +67,8 @@ LcdWrapper lcdWrapper(&lcd);
 HTTPClient httpClient;
 WiFiClientSecure *client = new WiFiClientSecure;
 
+BatteryVoltageMeter batteryVoltageMeter(BATTERY_VOLTAGE_METER_GPIO, BATTERY_VOLTAGE_0_REFERENCE, BATTERY_VOLTAGE_100_REFERENCE);
+
 Servo servoPullOpen;
 Servo servoPullClose;
 ServoWrapper servoPullOpenWrapper(SERVO_PULL_OPEN_GPIO, servoPullOpen, servoPullOpenCalibrationMinMemory, servoPullOpenCalibrationMaxMemory);
@@ -73,7 +76,7 @@ ServoWrapper servoPullCloseWrapper(SERVO_PULL_CLOSE_GPIO, servoPullClose, servoP
 
 LedWrapper ledWrapper(LED_RED_PWM_TIMER_INDEX, LED_RED_GPIO, LED_GREEN_PWM_TIMER_INDEX, LED_GREEN_GPIO, LED_BLUE_PWM_TIMER_INDEX, LED_BLUE_GPIO);
 
-Navigation navigation(POTENTIOMETER_GPIO, servoPullOpenWrapper, servoPullCloseWrapper, ledWrapper, &AppMode, &lcdWrapper);
+Navigation navigation(POTENTIOMETER_GPIO, servoPullOpenWrapper, servoPullCloseWrapper, ledWrapper, &AppMode, &lcdWrapper, batteryVoltageMeter);
 ButtonHandler enterButton(ENTER_BUTTON_GPIO);
 ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 
@@ -82,7 +85,7 @@ BackendApp backendApp(&httpClient, &backgroundApp);
 
 Adafruit_BME280 bme;
 
-BluetoothWrapper bluetoothWrapper(&bme, &backgroundApp, &servoPullOpenWrapper, &servoPullCloseWrapper);
+BluetoothWrapper bluetoothWrapper(&bme, &backgroundApp, &servoPullOpenWrapper, &servoPullCloseWrapper, &batteryVoltageMeter);
 
 enum HttpQueryTypeEnum { BackendAppWeatherForecastAndAirPollutionQueries, BackendAppSaveLogQuery };
 
@@ -136,7 +139,7 @@ void warningsTask(void *param) {
             backgroundApp.handleWarningsDisplay();
         }
 
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -246,33 +249,26 @@ void weatherForecastAndAirPollutionTask(void *param) {
 void httpTask(void *param) {
     while (true) {
         vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
-        Serial.println("HttpTask Wywolanie");
 
         if (!httpQueriesQueue.empty()) {
-            Serial.println("!httpQueriesQueue.empty()");
             if (isHttpQueriesQueueOccupied) {
-                Serial.println("isHttpQueriesQueueOccupied");
                 continue;
             }
 
             if (!isWifiConnected && !isWifiConnecting) {
-                Serial.println("!isWifiConnected && !isWifiConnecting");
                 initWifi();
                 continue;
             }
 
             if (!isWifiConnected) {
-                 Serial.println("!isWifiConnected");
                 continue;
             }
 
             isHttpQueriesQueueOccupied = true;
 
-            Serial.println("Pobranie Zadania");
-            HttpQueryQueueItem olderQueryInQueue = httpQueriesQueue.front();
-            Serial.println("Zakonczenie Zadania");
+            HttpQueryQueueItem oldestQueryInQueue = httpQueriesQueue.front();
 
-            switch (olderQueryInQueue.type) {
+            switch (oldestQueryInQueue.type) {
                 case BackendAppWeatherForecastAndAirPollutionQueries: {
                     Serial.println("Processing new query from the queue: BackendAppWeatherForecastAndAirPollutionQueries");
 
@@ -297,7 +293,7 @@ void httpTask(void *param) {
 
                 case BackendAppSaveLogQuery: {
                     Serial.println("Processing new query from the queue: BackendAppSaveLogQuery");
-                    backendApp.saveLogToApp(olderQueryInQueue.backendAppLog);
+                    backendApp.saveLogToApp(oldestQueryInQueue.backendAppLog);
 
                     break;
                 }       
@@ -306,10 +302,7 @@ void httpTask(void *param) {
             httpQueriesQueue.erase(httpQueriesQueue.begin());
             isHttpQueriesQueueOccupied = false;
 
-
-            Serial.println("Przed Disconnect WIFI");
             disconnectWifi();
-            Serial.println("Po Disconnect WIFI");
         }
     }
 }
@@ -343,7 +336,7 @@ void wifiConnectionTask(void *param) {
         } else {
             isWifiConnected = false;
             Serial.println("WiFi Connecting");
-            Serial.print("WiFi Status:");
+            Serial.print("WiFi Status: ");
             Serial.println(wifiStatus);
         }
     }
@@ -398,9 +391,24 @@ void bleTask(void *param) {
     }
 }
 
+void batteryMeterTask(void *param) {
+    while (true) {
+        float batteryVoltage = batteryVoltageMeter.getVoltage();
+        float batteryPercentage = batteryVoltageMeter.calculatePercentage(batteryVoltage);
+
+        if (batteryPercentage < BATTERY_VOLTAGE_MIN_PERCENTAGE) {
+            backgroundApp.addWarning(LOW_BATTERY);
+        }
+
+        vTaskDelay(5000 / portTICK_PERIOD_MS); // Once per 5 seconds
+    }
+}
+
 void setup() {
     Wire.begin(LCD_SDA_GPIO, LCD_SCL_GPIO);
     Serial.begin(115200);
+
+    batteryVoltageMeter.init();
 
     initWifi();
 
@@ -440,6 +448,7 @@ void setup() {
     xTaskCreate(ntpTask, "NTPTask", 3072, NULL, 1, &NTPTask);
     xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 4096 , NULL, 1, &WindowOpeningCalculationTask);
     xTaskCreate(bleTask, "BLETask", 3072 , NULL, 1, &BLETask);
+    xTaskCreate(batteryMeterTask, "BatteryMeterTask", 1024 , NULL, 1, &BatteryMeterTask);
 
     lcdWrapper.init();
 }

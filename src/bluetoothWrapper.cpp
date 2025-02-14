@@ -31,9 +31,10 @@ vector<string> commandTypes = {
   "CLEAR_WARNINGS",
   "FORCE_OPENING_WINDOW_CALCULATION",
   "MOVE_BOTH_SERVOS_SMOOTHLY_TO",
+  "GET_BATTERY_VOLTAGE",
 };
 
-BluetoothWrapper::BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp, ServoWrapper* servoPullOpen, ServoWrapper* servoPullClose): bme(bme), backgroundApp(backgroundApp), servoPullOpen(servoPullOpen), servoPullClose(servoPullClose) {}
+BluetoothWrapper::BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp, ServoWrapper* servoPullOpen, ServoWrapper* servoPullClose, BatteryVoltageMeter* batteryVoltageMeter): bme(bme), backgroundApp(backgroundApp), servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), batteryVoltageMeter(batteryVoltageMeter) {}
 
 class WindowOpeningBLEServerCallbacks : public BLEServerCallbacks {
   public:
@@ -206,6 +207,8 @@ tuple<vector<String>, String> BluetoothWrapper::handleCommand(String* message) {
     response.push_back(handleForceOpeningWindowCalculationCommand());
   } else if (commandType == "MOVE_BOTH_SERVOS_SMOOTHLY_TO") {
     response.push_back(handleMoveBothServosSmoothlyTo(newServosPosition));
+  } else if (commandType == "GET_BATTERY_VOLTAGE") {
+    response.push_back(handleGetBatteryVoltageCommand());
   } else {
     response.push_back(handleInvalidCommand());
   }
@@ -402,6 +405,13 @@ String BluetoothWrapper::handleMoveBothServosSmoothlyTo(uint8_t newPosition) {
   Serial.print("New target set up: ");
   Serial.println(newPosition);
   return "New target set up to: " + String(newPosition);
+}
+
+String BluetoothWrapper::handleGetBatteryVoltageCommand() {
+  float batteryVoltage = this->batteryVoltageMeter->getVoltage();
+  float batteryPercentage = this->batteryVoltageMeter->calculatePercentage(batteryVoltage);
+
+  return String(batteryVoltage) + "V (" + String(batteryPercentage) + "%)";
 }
 
 String BluetoothWrapper::handleInvalidCommand() {

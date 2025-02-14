@@ -9,7 +9,7 @@
 #include <memoryValue.h>
 #include <memoryData.h>
 #include <lcdWrapper.h>
-
+#include <batteryVoltageMeter.h>
 using namespace std;
 
 enum AppMainStateEnum { Sleep, Awaken };
@@ -23,6 +23,7 @@ enum MainMenuEnum {
     MainMenuAppMode,
     MainMenuServoSelection,
     MainMenuSettings,
+    MainMenuBatteryVoltage
 };
 enum CalibrationStepEnum { CalibrationStepMin, CalibrationStepMax };
 enum ServoEnum { ServoPullOpen, ServoPullClose};
@@ -88,7 +89,8 @@ class Navigation {
         AppModeEnum temporaryAppMode;
         uint32_t temporarySettingValue;
         LcdWrapper* lcd;
-
+        BatteryVoltageMeter& batteryVoltageMeter;
+        
         void setServoCalibrationMin();
         void setServoCalibrationMax();
 
@@ -129,7 +131,7 @@ class Navigation {
         Setting* getSettingByEnum(SettingEnum settingName);
 
     public:
-        Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode, LcdWrapper* lcd);
+        Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter& batteryVoltageMeter);
 
         AppMainStateEnum appMainState;
         MainMenuEnum mainMenuState;
