@@ -23,7 +23,8 @@ enum MainMenuEnum {
     MainMenuAppMode,
     MainMenuServoSelection,
     MainMenuSettings,
-    MainMenuBatteryVoltage
+    MainMenuBatteryVoltageBox,
+    MainMenuBatteryVoltageServos
 };
 enum CalibrationStepEnum { CalibrationStepMin, CalibrationStepMax };
 enum ServoEnum { ServoPullOpen, ServoPullClose};
@@ -89,7 +90,8 @@ class Navigation {
         AppModeEnum temporaryAppMode;
         uint32_t temporarySettingValue;
         LcdWrapper* lcd;
-        BatteryVoltageMeter& batteryVoltageMeter;
+        BatteryVoltageMeter& batteryVoltageMeterBox;
+        BatteryVoltageMeter& batteryVoltageMeterServos;
         
         void setServoCalibrationMin();
         void setServoCalibrationMax();
@@ -131,7 +133,7 @@ class Navigation {
         Setting* getSettingByEnum(SettingEnum settingName);
 
     public:
-        Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter& batteryVoltageMeter);
+        Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter& batteryVoltageMeterBox, BatteryVoltageMeter& batteryVoltageMeterServos);
 
         AppMainStateEnum appMainState;
         MainMenuEnum mainMenuState;

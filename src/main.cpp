@@ -67,7 +67,8 @@ LcdWrapper lcdWrapper(&lcd);
 HTTPClient httpClient;
 WiFiClientSecure *client = new WiFiClientSecure;
 
-BatteryVoltageMeter batteryVoltageMeter(BATTERY_VOLTAGE_METER_GPIO, BATTERY_VOLTAGE_0_REFERENCE, BATTERY_VOLTAGE_100_REFERENCE);
+BatteryVoltageMeter batteryVoltageMeterBox(BATTERY_VOLTAGE_BOX_METER_GPIO, BATTERY_VOLTAGE_0_REFERENCE, BATTERY_VOLTAGE_100_REFERENCE, lastReadBatteryVoltageBox);
+BatteryVoltageMeter batteryVoltageMeterServos(BATTERY_VOLTAGE_SERVOS_METER_GPIO, BATTERY_VOLTAGE_0_REFERENCE, BATTERY_VOLTAGE_100_REFERENCE, lastReadBatteryVoltageServos);
 
 Servo servoPullOpen;
 Servo servoPullClose;
@@ -76,7 +77,7 @@ ServoWrapper servoPullCloseWrapper(SERVO_PULL_CLOSE_GPIO, servoPullClose, servoP
 
 LedWrapper ledWrapper(LED_RED_PWM_TIMER_INDEX, LED_RED_GPIO, LED_GREEN_PWM_TIMER_INDEX, LED_GREEN_GPIO, LED_BLUE_PWM_TIMER_INDEX, LED_BLUE_GPIO);
 
-Navigation navigation(POTENTIOMETER_GPIO, servoPullOpenWrapper, servoPullCloseWrapper, ledWrapper, &AppMode, &lcdWrapper, batteryVoltageMeter);
+Navigation navigation(POTENTIOMETER_GPIO, servoPullOpenWrapper, servoPullCloseWrapper, ledWrapper, &AppMode, &lcdWrapper, batteryVoltageMeterBox, batteryVoltageMeterServos);
 ButtonHandler enterButton(ENTER_BUTTON_GPIO);
 ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 
@@ -85,7 +86,7 @@ BackendApp backendApp(&httpClient, &backgroundApp);
 
 Adafruit_BME280 bme;
 
-BluetoothWrapper bluetoothWrapper(&bme, &backgroundApp, &servoPullOpenWrapper, &servoPullCloseWrapper, &batteryVoltageMeter);
+BluetoothWrapper bluetoothWrapper(&bme, &backgroundApp, &servoPullOpenWrapper, &servoPullCloseWrapper, &batteryVoltageMeterBox, &batteryVoltageMeterServos);
 
 enum HttpQueryTypeEnum { BackendAppWeatherForecastAndAirPollutionQueries, BackendAppSaveLogQuery };
 
@@ -99,7 +100,7 @@ bool isHttpQueriesQueueOccupied = false;
 vector<HttpQueryQueueItem> httpQueriesQueue;
 
 void initWifi() {
-    // WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     shouldTryToConnectToWifi = true;
 }
@@ -246,6 +247,7 @@ void weatherForecastAndAirPollutionTask(void *param) {
     }
 }
 
+// unsigned long lastHttpRequestMillis = 0;
 void httpTask(void *param) {
     while (true) {
         vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
@@ -303,7 +305,13 @@ void httpTask(void *param) {
             isHttpQueriesQueueOccupied = false;
 
             disconnectWifi();
+            // lastHttpRequestMillis = millis();
         }
+
+        // No requests for 60 seconds, disconnect wifi
+        // if (millis() - lastHttpRequestMillis > 60000) {
+        //     disconnectWifi();
+        // }
     }
 }
 
@@ -311,14 +319,14 @@ void wifiConnectionTask(void *param) {
     while (true) {
         vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
 
-        if (!shouldTryToConnectToWifi && !isWifiConnecting && !isWifiConnected) {
-            continue;
-        } 
-
         if (isWifiConnected) {
             continue;
         }
-        
+
+        if (!shouldTryToConnectToWifi && !isWifiConnecting) {
+            continue;
+        }
+
         if (shouldTryToConnectToWifi) {
             shouldTryToConnectToWifi = false;
             isWifiConnecting = true;
@@ -326,18 +334,35 @@ void wifiConnectionTask(void *param) {
 
         Serial.println("Trying to connect to WiFi");
 
-        auto wifiStatus = WiFi.status();
-        
-        if (wifiStatus == WL_CONNECTED) {
-            isWifiConnected = true;
-            isWifiConnecting = false;
-            Serial.println("WiFi Connected");
-            client->setInsecure();
-        } else {
-            isWifiConnected = false;
-            Serial.println("WiFi Connecting");
-            Serial.print("WiFi Status: ");
-            Serial.println(wifiStatus);
+        auto wifiStatus = WiFi.waitForConnectResult();
+
+        Serial.print("WiFi Status: ");
+        Serial.println(wifiStatus);
+
+        switch (wifiStatus) {
+            case WL_CONNECTED: {
+                isWifiConnected = true;
+                isWifiConnecting = false;
+                Serial.println("WiFi Connected");
+                client->setInsecure();
+                break;
+            }
+
+            case WL_CONNECTION_LOST:
+            case WL_DISCONNECTED: {
+                isWifiConnected = false;
+                isWifiConnecting = false;
+                WiFi.disconnect();
+                initWifi();
+                break;
+            }
+
+            default: {
+                isWifiConnected = false;
+                isWifiConnecting = true;
+                Serial.println("WiFi Connecting");
+                break;
+            }
         }
     }
 }
@@ -393,11 +418,29 @@ void bleTask(void *param) {
 
 void batteryMeterTask(void *param) {
     while (true) {
-        float batteryVoltage = batteryVoltageMeter.getVoltage();
-        float batteryPercentage = batteryVoltageMeter.calculatePercentage(batteryVoltage);
+        float batteryVoltageBox = batteryVoltageMeterBox.getVoltage();
+        float batteryPercentageBox = batteryVoltageMeterBox.calculatePercentage(batteryVoltageBox);
 
-        if (batteryPercentage < BATTERY_VOLTAGE_MIN_PERCENTAGE) {
+        float batteryVoltageServos = batteryVoltageMeterServos.getVoltage();
+        float batteryPercentageServos = batteryVoltageMeterServos.calculatePercentage(batteryVoltageServos);
+
+        Serial.print("Battery Voltage Box: ");
+        Serial.println(batteryVoltageMeterBox.getBatteryVoltageMessage());
+        Serial.print("Battery Voltage Servos: ");
+        Serial.println(batteryVoltageMeterServos.getBatteryVoltageMessage());
+
+        if (batteryPercentageBox < BATTERY_VOLTAGE_MIN_PERCENTAGE || batteryPercentageServos < BATTERY_VOLTAGE_MIN_PERCENTAGE) {
+            if (batteryPercentageBox < BATTERY_VOLTAGE_MIN_PERCENTAGE) {    
+                Serial.println("Battery percentage is too low for Box");
+            }
+
+            if (batteryPercentageServos < BATTERY_VOLTAGE_MIN_PERCENTAGE) {
+                Serial.println("Battery percentage is too low for Servos");
+            }
+
             backgroundApp.addWarning(LOW_BATTERY);
+        } else {
+            backgroundApp.removeWarning(LOW_BATTERY);
         }
 
         vTaskDelay(5000 / portTICK_PERIOD_MS); // Once per 5 seconds
@@ -408,7 +451,8 @@ void setup() {
     Wire.begin(LCD_SDA_GPIO, LCD_SCL_GPIO);
     Serial.begin(115200);
 
-    batteryVoltageMeter.init();
+    batteryVoltageMeterBox.init();
+    batteryVoltageMeterServos.init();
 
     initWifi();
 
@@ -440,15 +484,15 @@ void setup() {
     servoPullCloseWrapper.initialize(SERVO_PULL_CLOSE_PWM_TIMER_INDEX);
     
     xTaskCreate(warningsTask, "WarningsTask", 1536, NULL, 1, &WarningsTask);
-    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 1024, NULL, 1, &ServosSmoothMovementTask);
+    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 1536, NULL, 1, &ServosSmoothMovementTask);
     xTaskCreate(displayTask, "displayTask", 1536, NULL, 1, &DisplayTask);
     xTaskCreate(weatherForecastAndAirPollutionTask, "weatherForecastAndAirPollutionTask", 1536, NULL, 1, &WeatherForecastAndAirPollutionTask);
     xTaskCreate(navigationTask, "NavigationTask", 2048, NULL, 1, &NavigationTask);
-    xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 2048, NULL, 1, &WifiConnectionTask);
+    xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 3072, NULL, 1, &WifiConnectionTask);
     xTaskCreate(ntpTask, "NTPTask", 3072, NULL, 1, &NTPTask);
     xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 4096 , NULL, 1, &WindowOpeningCalculationTask);
     xTaskCreate(bleTask, "BLETask", 3072 , NULL, 1, &BLETask);
-    xTaskCreate(batteryMeterTask, "BatteryMeterTask", 1024 , NULL, 1, &BatteryMeterTask);
+    xTaskCreate(batteryMeterTask, "BatteryMeterTask", 1536 , NULL, 1, &BatteryMeterTask);
 
     lcdWrapper.init();
 }

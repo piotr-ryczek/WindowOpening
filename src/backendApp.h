@@ -80,7 +80,8 @@ class BackendApp {
       BackgroundApp* backgroundApp;
 
       void addHeaders();
-
+      void setClientProperties();
+      double roundValue(double value);
   public:
       BackendApp(HTTPClient* httpClient, BackgroundApp* backgroundApp);
 

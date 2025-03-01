@@ -60,6 +60,8 @@ void BackgroundApp::handleWarningsDisplay() {
     lastWarningChangeTimer = currentMillis;
 
     if (warnings.empty()) {
+        this->lcd.clear();
+        this->lcd.noBacklight();
         displayLedColorByWarning(NONE_WARNING);
         return;
     }

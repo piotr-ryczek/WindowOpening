@@ -1,6 +1,8 @@
 #ifndef APP_CONFIG_H
 #define APP_CONFIG_H
 
+#include <Arduino.h>
+
 enum AppModeEnum { Auto, Manual };
 
 extern AppModeEnum AppMode;
@@ -32,5 +34,8 @@ extern const float RESISTOR_SECOND_VALUE;
 extern const float BATTERY_VOLTAGE_0_REFERENCE;
 extern const float BATTERY_VOLTAGE_100_REFERENCE;
 extern const float BATTERY_VOLTAGE_MIN_PERCENTAGE;
+
+extern float lastReadBatteryVoltageBox;
+extern float lastReadBatteryVoltageServos;
 
 #endif

@@ -1,5 +1,4 @@
 #include <config.h>
-#include <Arduino.h>
 
 AppModeEnum AppMode = Manual; // Always initializing with Manual for security reasons (not stored in memory)
 const bool WEATHER_FORECAST_ENABLED = true;
@@ -27,4 +26,7 @@ const float RESISTOR_SECOND_VALUE = 2150.0;   // 2.15kΩ
 
 const float BATTERY_VOLTAGE_0_REFERENCE = 6.5;
 const float BATTERY_VOLTAGE_100_REFERENCE = 8.45;
-const float BATTERY_VOLTAGE_MIN_PERCENTAGE = 20;  
+const float BATTERY_VOLTAGE_MIN_PERCENTAGE = 20;
+
+float lastReadBatteryVoltageBox = 0;
+float lastReadBatteryVoltageServos = 0;

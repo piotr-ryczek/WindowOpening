@@ -21,7 +21,8 @@ class BluetoothWrapper {
     BackgroundApp* backgroundApp;
     ServoWrapper* servoPullOpen;
     ServoWrapper* servoPullClose;
-    BatteryVoltageMeter* batteryVoltageMeter;
+    BatteryVoltageMeter* batteryVoltageMeterBox;
+    BatteryVoltageMeter* batteryVoltageMeterServos;
 
     vector<string> splitString(const String* command);
     string trim(const string& str);
@@ -36,12 +37,12 @@ class BluetoothWrapper {
     String handleGetLastWeatherLogCommand();
     String handleForceOpeningWindowCalculationCommand();
     String handleMoveBothServosSmoothlyTo(uint8_t newPosition);
-    String handleGetBatteryVoltageCommand();
+    String handleGetBatteryVoltageCommand(BatteryVoltageMeter* batteryVoltageMeter);
 
     String handleInvalidCommand();
 
   public:
-    BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp, ServoWrapper* servoPullOpen, ServoWrapper* servoPullClose, BatteryVoltageMeter* batteryVoltageMeter);
+    BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp, ServoWrapper* servoPullOpen, ServoWrapper* servoPullClose, BatteryVoltageMeter* batteryVoltageMeterBox, BatteryVoltageMeter* batteryVoltageMeterServos);
     void init();
     tuple<vector<String>, String> handleCommand(String* message);
     void checkQueue();

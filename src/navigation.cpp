@@ -26,7 +26,7 @@ vector<Setting> settings {
     },
 };
 
-Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter& batteryVoltageMeter): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led), lcd(lcd), batteryVoltageMeter(batteryVoltageMeter) {
+Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter& batteryVoltageMeterBox, BatteryVoltageMeter& batteryVoltageMeterServos): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led), lcd(lcd), batteryVoltageMeterBox(batteryVoltageMeterBox), batteryVoltageMeterServos(batteryVoltageMeterServos) {
     this->appMainState = Sleep;
     this->mainMenuState = MainMenuNone; // Chosen menu
     this->mainMenuTemporaryState = MainMenuNone; // Temporary position while selecting
@@ -43,7 +43,7 @@ Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, Serv
     this->appMode = appMode;
     this->selectedSetting = nullptr;
 
-    this->assignRangesForMainMenu(vector<MainMenuEnum> { MainMenuCalibration, MainMenuMove, MainMenuMoveBothServos, MainMenuMoveSmoothly, MainMenuMoveBothServosSmoothly, MainMenuServoSelection, MainMenuAppMode, MainMenuSettings, MainMenuBatteryVoltage });
+    this->assignRangesForMainMenu(vector<MainMenuEnum> { MainMenuCalibration, MainMenuMove, MainMenuMoveBothServos, MainMenuMoveSmoothly, MainMenuMoveBothServosSmoothly, MainMenuServoSelection, MainMenuAppMode, MainMenuSettings, MainMenuBatteryVoltageBox, MainMenuBatteryVoltageServos });
     this->assignRangesForSettings(vector<SettingEnum> { SettingOptimalTemperature, SettingChangeDiffThreshold, WindowOpeningCalculationInterval });
 
     this->servoSelectionPositions = {
@@ -242,7 +242,8 @@ void Navigation::handleBackward() {
                 case MainMenuMoveBothServosSmoothly:
                 case MainMenuAppMode:
                 case MainMenuServoSelection:
-                case MainMenuBatteryVoltage: {
+                case MainMenuBatteryVoltageBox:
+                case MainMenuBatteryVoltageServos: {
                     mainMenuState = MainMenuNone;
                     this->activateMenuChoosing();
 
@@ -349,11 +350,13 @@ void Navigation::handleMenuSelection() {
             break;
         }
 
-        case MainMenuBatteryVoltage: {
-            float batteryVoltage = batteryVoltageMeter.getVoltage();
-            float batteryPercentage = batteryVoltageMeter.calculatePercentage(batteryVoltage);
+        case MainMenuBatteryVoltageBox: {
+            lcd->print(mainMenuStateString, batteryVoltageMeterBox.getBatteryVoltageMessage());
+            break;     
+        }
 
-            lcd->print(mainMenuStateString, String(batteryVoltage) + "V (" + String(batteryPercentage) + "%)");
+        case MainMenuBatteryVoltageServos: {
+            lcd->print(mainMenuStateString, batteryVoltageMeterServos.getBatteryVoltageMessage());
             break;
         }
 
@@ -611,6 +614,10 @@ String Navigation::translateMainMenuStateEnumIntoString(MainMenuEnum mainMenuSta
             return "AppMode";
         case MainMenuSettings:
             return "Settings";
+        case MainMenuBatteryVoltageBox: 
+            return "BatteryVoltageBox";
+        case MainMenuBatteryVoltageServos:
+            return "BatteryVoltageServos";
         case MainMenuServoSelection:
             return "Servo Selection";
     }
@@ -677,7 +684,8 @@ void Navigation::displayMainMenuLed(MainMenuEnum mainMenuState) {
             led.setColorYellow();
             break;
         case MainMenuSettings:
-        case MainMenuBatteryVoltage: // Possibly to change
+        case MainMenuBatteryVoltageBox:
+        case MainMenuBatteryVoltageServos:
             led.setColorOrange();
             break;
         case MainMenuNone:
