@@ -4,7 +4,7 @@
 
 BatteryVoltageMeter::BatteryVoltageMeter(byte batteryVoltageMeterPin, float batteryVoltage0Reference, float batteryVoltage100Reference, float &lastReadBatteryVoltage) : batteryVoltageMeterPin(batteryVoltageMeterPin), batteryVoltage0Reference(batteryVoltage0Reference), batteryVoltage100Reference(batteryVoltage100Reference), lastReadBatteryVoltage(lastReadBatteryVoltage) {}
 
-void BatteryVoltageMeter::init() {
+void BatteryVoltageMeter::initialize() {
     adc_chars = (esp_adc_cal_characteristics_t *)calloc(1, sizeof(esp_adc_cal_characteristics_t));
     if (adc_chars == NULL) {
         Serial.println("ERROR: Memory allocation failed");

@@ -29,8 +29,9 @@ void LcdWrapper::checkScroll() {
       this->lcd->setCursor(this->scrollPosition, 1);
       this->lcd->print(this->bottomRowText);
     }
-  }
 
+    this->lastPrintMiliseconds = millis();
+  }
 }
 
 void LcdWrapper::backlight() {
@@ -50,7 +51,7 @@ void LcdWrapper::turnOff() {
   this->lcd->noBacklight();
 }
 
-void LcdWrapper::init() {
+void LcdWrapper::initialize() {
   this->lcd->init();
 }
 
@@ -60,20 +61,42 @@ void LcdWrapper::clear() {
   this->lcd->clear();
 }
 
+void LcdWrapper::clearTopRow() {
+  this->topRowText = "";
+  this->lcd->setCursor(0, 0);
+  this->lcd->print("                                ");
+}
+
+void LcdWrapper::clearBottomRow() {
+  this->bottomRowText = "";
+  this->lcd->setCursor(0, 1);
+  this->lcd->print("                                ");
+}
+
 void LcdWrapper::print(String topRowText, String bottomRowText) {
   if (topRowText == this->topRowText && bottomRowText == this->bottomRowText) {
     return;
   }
 
-  this->topRowText = topRowText;
-  this->bottomRowText = bottomRowText;
+  this->lcd->home();
+  this->lastPrintMiliseconds = millis();
   this->scrollPosition = 0;
 
-  this->lcd->clear();
-  this->lcd->setCursor(0, 0);
-  this->lcd->print(this->topRowText);
-  this->lcd->setCursor(0, 1);
-  this->lcd->print(this->bottomRowText);
+  if (topRowText != this->topRowText) {
+    this->clearTopRow();
+    this->topRowText = topRowText;
+
+    this->lcd->setCursor(0, 0);
+    this->lcd->print(this->topRowText);
+  }
+
+  if (bottomRowText != this->bottomRowText) {
+    this->clearBottomRow();
+    this->bottomRowText = bottomRowText;
+
+    this->lcd->setCursor(0, 1);
+    this->lcd->print(this->bottomRowText);
+  }
 }
 
 void LcdWrapper::print(String topRowText) {
@@ -81,8 +104,11 @@ void LcdWrapper::print(String topRowText) {
     return;
   }
 
+  this->lcd->home();
+  this->lastPrintMiliseconds = millis();
+
   this->topRowText = topRowText;
-  this->bottomRowText = "";
+  this->bottomRowText = ""; 
   this->scrollPosition = 0;
 
   this->lcd->clear();

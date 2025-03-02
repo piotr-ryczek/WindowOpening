@@ -14,7 +14,7 @@ class BatteryVoltageMeter {
         float getVoltage();
         float calculatePercentage(float batteryVoltage);
         String getBatteryVoltageMessage();
-        void init();
+        void initialize();
     private:
         byte batteryVoltageMeterPin;
         float batteryVoltage0Reference;

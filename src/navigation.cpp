@@ -26,13 +26,14 @@ vector<Setting> settings {
     },
 };
 
-Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter& batteryVoltageMeterBox, BatteryVoltageMeter& batteryVoltageMeterServos): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led), lcd(lcd), batteryVoltageMeterBox(batteryVoltageMeterBox), batteryVoltageMeterServos(batteryVoltageMeterServos) {
+Navigation::Navigation(byte potentiometerGpio, boolean isPotentiometerInverted, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& led, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter* batteryVoltageMeterBox, BatteryVoltageMeter* batteryVoltageMeterServos, ValuesJitterFilter* valuesJitterFilter): servoPullOpen(servoPullOpen), servoPullClose(servoPullClose), led(led), lcd(lcd), batteryVoltageMeterBox(batteryVoltageMeterBox), batteryVoltageMeterServos(batteryVoltageMeterServos), valuesJitterFilter(valuesJitterFilter) {
     this->appMainState = Sleep;
     this->mainMenuState = MainMenuNone; // Chosen menu
     this->mainMenuTemporaryState = MainMenuNone; // Temporary position while selecting
     this->mainMenuTemporaryAnalogPosition = -1; // By default unset; 0-4095 (Analog value)
     this->isMenuSelectionActivated = false;
     this->potentiometerGpio = potentiometerGpio;
+    this->isPotentiometerInverted = isPotentiometerInverted;
     this->calibrationStep = CalibrationStepMin;
     this->selectedServo = &this->servoPullOpen;
     this->selectedServoEnum = ServoPullOpen;
@@ -42,7 +43,7 @@ Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, Serv
     this->temporaryAppMode = Manual; // Temporary value while rotating potentiometer
     this->appMode = appMode;
     this->selectedSetting = nullptr;
-
+    
     this->assignRangesForMainMenu(vector<MainMenuEnum> { MainMenuCalibration, MainMenuMove, MainMenuMoveBothServos, MainMenuMoveSmoothly, MainMenuMoveBothServosSmoothly, MainMenuServoSelection, MainMenuAppMode, MainMenuSettings, MainMenuBatteryVoltageBox, MainMenuBatteryVoltageServos });
     this->assignRangesForSettings(vector<SettingEnum> { SettingOptimalTemperature, SettingChangeDiffThreshold, WindowOpeningCalculationInterval });
 
@@ -71,6 +72,14 @@ Navigation::Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, Serv
             to: 100
         }
     };
+}
+
+void Navigation::initialize() {
+    if (this->isPotentiometerInverted) {
+        this->valuesJitterFilter->addValue("pontentiometer", 4095, 4095, 0, 1.5);
+    } else {
+        this->valuesJitterFilter->addValue("pontentiometer", 0, 0, 4095, 1.5);
+    }
 }
 
 void Navigation::assignRangesForMainMenu(const vector<MainMenuEnum>& positions) {
@@ -132,7 +141,12 @@ void Navigation::logAppState() {
 }
 
 uint16_t Navigation::getPotentiometerValue() {
-    return analogRead(this->potentiometerGpio);
+    uint16_t value = analogRead(this->potentiometerGpio);
+    value = this->isPotentiometerInverted ? 4095 - value : value;
+
+    int filteredValue = this->valuesJitterFilter->updateValue("pontentiometer", value);
+
+    return filteredValue;
 }
 
 void Navigation::handleForward() {
@@ -236,14 +250,14 @@ void Navigation::handleBackward() {
                 }
 
                 case MainMenuCalibration:
+                case MainMenuBatteryVoltageBox:
+                case MainMenuBatteryVoltageServos:
                 case MainMenuMove:
                 case MainMenuMoveSmoothly:
                 case MainMenuMoveBothServos:
                 case MainMenuMoveBothServosSmoothly:
                 case MainMenuAppMode:
-                case MainMenuServoSelection:
-                case MainMenuBatteryVoltageBox:
-                case MainMenuBatteryVoltageServos: {
+                case MainMenuServoSelection: {
                     mainMenuState = MainMenuNone;
                     this->activateMenuChoosing();
 
@@ -317,7 +331,7 @@ SettingEnum Navigation::findSettingSelection(uint8_t position) {
 
 
 void Navigation::handleMenuSelection() {
-    uint16_t analogValue = analogRead(this->potentiometerGpio);
+    uint16_t analogValue = getPotentiometerValue();
     uint8_t menuPositionValue = translateAnalogTo100Range(analogValue);
 
     if (this->mainMenuTemporaryAnalogPosition == -1 || abs(analogValue - this->mainMenuTemporaryAnalogPosition) > deadPotentiometerMargin) {
@@ -351,12 +365,12 @@ void Navigation::handleMenuSelection() {
         }
 
         case MainMenuBatteryVoltageBox: {
-            lcd->print(mainMenuStateString, batteryVoltageMeterBox.getBatteryVoltageMessage());
+            lcd->print(mainMenuStateString, batteryVoltageMeterBox->getBatteryVoltageMessage());
             break;     
         }
 
         case MainMenuBatteryVoltageServos: {
-            lcd->print(mainMenuStateString, batteryVoltageMeterServos.getBatteryVoltageMessage());
+            lcd->print(mainMenuStateString, batteryVoltageMeterServos->getBatteryVoltageMessage());
             break;
         }
 
@@ -365,12 +379,11 @@ void Navigation::handleMenuSelection() {
             break;
     }
 
-    Serial.println(mainMenuStateString); 
+    // Serial.println(mainMenuStateString); 
 }
 
 void Navigation::confirmMenuSelection() {
     mainMenuState = mainMenuTemporaryState;
-
     displayMainMenuLed(mainMenuState);
 }
 
@@ -390,7 +403,7 @@ void Navigation::handleMove() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoValue = translateAnalogTo100Range(value);
 
-    Serial.println(servoValue);
+    Serial.println("ServoValue: " + String(servoValue));
 
     String bottomRowText = translateServoEnumToStringShort(selectedServoEnum) + ": " + String(servoValue);
 
@@ -403,8 +416,9 @@ void Navigation::handleMoveBothServos() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoValue = translateAnalogTo100Range(value);
 
+    Serial.println("ServoValue: " + String(servoValue));
+
     lcd->print(translateMainMenuStateEnumIntoString(mainMenuState) + ":", String(servoValue));
-    Serial.println(servoValue);
 
     servoPullOpen.moveTo(servoValue);
     servoPullClose.moveTo(servoValue);
@@ -414,7 +428,7 @@ void Navigation::handleServoSelection() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoSelectionValue = translateAnalogTo100Range(value);
 
-     ServoEnum localTemporarySelectedServoEnum = findServoSelection(servoSelectionValue);
+    ServoEnum localTemporarySelectedServoEnum = findServoSelection(servoSelectionValue);
 
     if (localTemporarySelectedServoEnum == temporarySelectedServoEnum) {
         return;
@@ -469,17 +483,20 @@ void Navigation::handleSetSettingValue() {
     if (this->selectedSetting == nullptr) return;
 
     uint16_t value = getPotentiometerValue();
+
     uint32_t settingSelectionValue = translateAnalogToGivenRange(value, this->selectedSetting->valueMin, this->selectedSetting->valueMax);
 
     this->temporarySettingValue = settingSelectionValue;
 
-    lcd->print(translateSettingEnumToString(temporarySelectedSettingEnum) + ":", String(this->temporarySettingValue));
+    lcd->print(translateSettingEnumToString(temporarySelectedSettingEnum) + ":", String(settingSelectionValue));
     Serial.println(settingSelectionValue);
 }
 
 void Navigation::handleMoveSmoothlySelection() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoPosition = translateAnalogTo100Range(value); // 0 - 100
+
+    Serial.println("ServoPosition: " + String(servoPosition));
 
     String bottomRowText = translateServoEnumToStringShort(selectedServoEnum) + ": " + String(servoPosition);
 
@@ -489,6 +506,8 @@ void Navigation::handleMoveSmoothlySelection() {
 void Navigation::handleMoveBothServosSmoothlySelection() {
     uint16_t value = getPotentiometerValue();
     uint8_t servoPosition = translateAnalogTo100Range(value); // 0 - 100
+
+    Serial.println("ServoPosition: " + String(servoPosition));
 
     lcd->print(translateMainMenuStateEnumIntoString(this->mainMenuState) + ":", String(servoPosition));
 }

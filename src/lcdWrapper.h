@@ -23,8 +23,10 @@ class LcdWrapper {
     void turnOff();
     void print(String topRowText);
     void print(String topRowText, String bottomRowText);
-    void init();
+    void initialize();
     void clear();
+    void clearBottomRow();
+    void clearTopRow();
 };
 
 #endif

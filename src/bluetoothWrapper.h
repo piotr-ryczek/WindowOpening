@@ -43,7 +43,7 @@ class BluetoothWrapper {
 
   public:
     BluetoothWrapper(Adafruit_BME280* bme, BackgroundApp* backgroundApp, ServoWrapper* servoPullOpen, ServoWrapper* servoPullClose, BatteryVoltageMeter* batteryVoltageMeterBox, BatteryVoltageMeter* batteryVoltageMeterServos);
-    void init();
+    void initialize();
     tuple<vector<String>, String> handleCommand(String* message);
     void checkQueue();
 };

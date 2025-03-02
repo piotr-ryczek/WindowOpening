@@ -92,7 +92,7 @@ class WindowOpeningBLECharacteristicCallbacks : public BLECharacteristicCallback
     }
 };
 
-void BluetoothWrapper::init() {
+void BluetoothWrapper::initialize() {
   BLEDevice::init(BLE_NAME);
   BLEServer *pServer = BLEDevice::createServer();
   BLEService *pService = pServer->createService(BLE_SERVICE_UUID);

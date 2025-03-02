@@ -10,6 +10,8 @@
 #include <memoryData.h>
 #include <lcdWrapper.h>
 #include <batteryVoltageMeter.h>
+#include <valuesJitterFilter.h>
+
 using namespace std;
 
 enum AppMainStateEnum { Sleep, Awaken };
@@ -70,6 +72,7 @@ extern vector<Setting> settings;
 class Navigation {
     private:
         byte potentiometerGpio;
+        boolean isPotentiometerInverted;
         vector<MainMenuPosition> mainMenuPositions;
         vector<SettingPosition> settingSelectionPositions;
         vector<ServoSelectionPosition> servoSelectionPositions;
@@ -90,8 +93,9 @@ class Navigation {
         AppModeEnum temporaryAppMode;
         uint32_t temporarySettingValue;
         LcdWrapper* lcd;
-        BatteryVoltageMeter& batteryVoltageMeterBox;
-        BatteryVoltageMeter& batteryVoltageMeterServos;
+        BatteryVoltageMeter* batteryVoltageMeterBox;
+        BatteryVoltageMeter* batteryVoltageMeterServos;
+        ValuesJitterFilter* valuesJitterFilter;
         
         void setServoCalibrationMin();
         void setServoCalibrationMax();
@@ -133,7 +137,7 @@ class Navigation {
         Setting* getSettingByEnum(SettingEnum settingName);
 
     public:
-        Navigation(byte potentiometerGpio, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter& batteryVoltageMeterBox, BatteryVoltageMeter& batteryVoltageMeterServos);
+        Navigation(byte potentiometerGpio, boolean isPotentiometerInverted, ServoWrapper& servoPullOpen, ServoWrapper& servoPullClose, LedWrapper& ledWrapper, AppModeEnum* appMode, LcdWrapper* lcd, BatteryVoltageMeter* batteryVoltageMeterBox, BatteryVoltageMeter* batteryVoltageMeterServos, ValuesJitterFilter* valuesJitterFilter);
 
         AppMainStateEnum appMainState;
         MainMenuEnum mainMenuState;
@@ -141,6 +145,7 @@ class Navigation {
 
         bool isMenuSelectionActivated;
 
+        void initialize();
         void handleForward();
         void handleBackward();
         void handleMenuSelection();

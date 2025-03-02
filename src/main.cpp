@@ -29,6 +29,7 @@
 #include <bluetoothWrapper.h>
 #include <batteryVoltageMeter.h>
 #include <timeHelpers.h>
+#include <valuesJitterFilter.h>
 
 /**
  * How to simulate calculations:
@@ -61,6 +62,8 @@ TaskHandle_t BLETask;
 TaskHandle_t BatteryMeterTask;
 // Instances
 
+ValuesJitterFilter valuesJitterFilter;
+
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 LcdWrapper lcdWrapper(&lcd);
 
@@ -77,7 +80,7 @@ ServoWrapper servoPullCloseWrapper(SERVO_PULL_CLOSE_GPIO, servoPullClose, servoP
 
 LedWrapper ledWrapper(LED_RED_PWM_TIMER_INDEX, LED_RED_GPIO, LED_GREEN_PWM_TIMER_INDEX, LED_GREEN_GPIO, LED_BLUE_PWM_TIMER_INDEX, LED_BLUE_GPIO);
 
-Navigation navigation(POTENTIOMETER_GPIO, servoPullOpenWrapper, servoPullCloseWrapper, ledWrapper, &AppMode, &lcdWrapper, batteryVoltageMeterBox, batteryVoltageMeterServos);
+Navigation navigation(POTENTIOMETER_GPIO, true, servoPullOpenWrapper, servoPullCloseWrapper, ledWrapper, &AppMode, &lcdWrapper, &batteryVoltageMeterBox, &batteryVoltageMeterServos, &valuesJitterFilter);
 ButtonHandler enterButton(ENTER_BUTTON_GPIO);
 ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 
@@ -451,8 +454,8 @@ void setup() {
     Wire.begin(LCD_SDA_GPIO, LCD_SCL_GPIO);
     Serial.begin(115200);
 
-    batteryVoltageMeterBox.init();
-    batteryVoltageMeterServos.init();
+    batteryVoltageMeterBox.initialize();
+    batteryVoltageMeterServos.initialize();
 
     initWifi();
 
@@ -469,10 +472,11 @@ void setup() {
     }
 
     Serial.println("BME280 initialized");
-    bluetoothWrapper.init();
+    bluetoothWrapper.initialize();
 
     delay(100);
 
+    navigation.initialize();
     ledWrapper.initialize();
 
     enterButton.initialize();
@@ -494,7 +498,7 @@ void setup() {
     xTaskCreate(bleTask, "BLETask", 3072 , NULL, 1, &BLETask);
     xTaskCreate(batteryMeterTask, "BatteryMeterTask", 1536 , NULL, 1, &BatteryMeterTask);
 
-    lcdWrapper.init();
+    lcdWrapper.initialize();
 }
 
 void loop() {
