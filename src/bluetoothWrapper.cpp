@@ -118,6 +118,8 @@ void BluetoothWrapper::initialize() {
   settingsMemory["CHANGE_DIFF_THRESHOLD"] = &changeDiffThresholdMemory;
   settingsMemory["WINDOW_OPENING_CALCULATION_INTERVAL"] = &windowOpeningCalculationIntervalMemory;
   settingsMemory["OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE"] = &openingTermPositiveTemperatureIncreaseMemory;
+  settingsMemory["WARNINGS_ARE_ACTIVE"] = &warningsAreActiveMemory;
+  settingsMemory["BATTERY_VOLTAGE_METERS_ARE_ACTIVE"] = &batteryVoltageMetersAreActiveMemory;
 
   Serial.println("Bluetooth initialized. Ready for pairing");
 }

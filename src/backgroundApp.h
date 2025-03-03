@@ -6,6 +6,7 @@
 #include <vector>
 #include <ledWrapper.h>
 #include <lcdWrapper.h>
+#include <memoryData.h>
 #include <backendApp.h>
 
 struct WeatherItem;
@@ -26,14 +27,14 @@ class BackgroundApp {
         long lastWarningChangeTimer;
         boolean isLedActive;
         set<WarningEnum>::iterator currentWarningDisplayedIndex;
-
+        MemoryValue* warningsAreActiveMemory;
         void displayLedColorByWarning(WarningEnum warning);
         String translateWarningEnumToString(WarningEnum warning);
 
     public:
         set<WarningEnum> warnings;
         
-        BackgroundApp(LedWrapper& led, LcdWrapper& lcd);
+        BackgroundApp(LedWrapper& led, LcdWrapper& lcd, MemoryValue* warningsAreActiveMemory);
 
         void addWarning(WarningEnum warning);
         void removeWarning(WarningEnum warning);

@@ -1,7 +1,7 @@
 #include <backgroundApp.h>
 #include <Arduino.h>
 
-BackgroundApp::BackgroundApp(LedWrapper& led, LcdWrapper& lcd): led(led), lcd(lcd) {
+BackgroundApp::BackgroundApp(LedWrapper& led, LcdWrapper& lcd, MemoryValue* warningsAreActiveMemory): led(led), lcd(lcd), warningsAreActiveMemory(warningsAreActiveMemory) {
     this->lastWarningChangeTimer = millis();
     this->currentWarningDisplayedIndex = this->warnings.begin();
     this->isLedActive = false;
@@ -53,6 +53,10 @@ void BackgroundApp::displayLedColorByWarning(WarningEnum warning) {
 }
 
 void BackgroundApp::handleWarningsDisplay() {
+    if (warningsAreActiveMemory->readValue() == 0) {
+        return;
+    }
+
     long currentMillis = millis();
 
     if (currentMillis - lastWarningChangeTimer < timerDelay) return;

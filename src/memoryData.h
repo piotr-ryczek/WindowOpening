@@ -52,6 +52,11 @@ const int WINDOW_OPENING_CALCULATION_INTERVAL_VALUE_ADDRESS = 108;
 const int OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE_SET_ADDRESS = 112;
 const int OPENING_TERM_POSITIVE_TEMPERATURE_INCREASE_VALUE_ADDRESS = 116;
 
+const int WARNINGS_ARE_ACTIVE_SET_ADDRESS = 120;
+const int WARNINGS_ARE_ACTIVE_VALUE_ADDRESS = 124;
+
+const int BATTERY_VOLTAGE_METERS_ARE_ACTIVE_SET_ADDRESS = 128;
+const int BATTERY_VOLTAGE_METERS_ARE_ACTIVE_VALUE_ADDRESS = 132;
 
 // MemoryValues
 
@@ -89,5 +94,9 @@ extern MemoryValue changeDiffThresholdMemory;
 extern MemoryValue windowOpeningCalculationIntervalMemory;
 
 extern MemoryValue openingTermPositiveTemperatureIncreaseMemory;
+
+extern MemoryValue warningsAreActiveMemory;
+
+extern MemoryValue batteryVoltageMetersAreActiveMemory;
 
 #endif

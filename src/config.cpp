@@ -30,3 +30,6 @@ const float BATTERY_VOLTAGE_MIN_PERCENTAGE = 20;
 
 float lastReadBatteryVoltageBox = 0;
 float lastReadBatteryVoltageServos = 0;
+
+// Testing
+bool shouldDisplayFunctionTasksExecutionLogs = false;

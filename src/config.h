@@ -38,4 +38,7 @@ extern const float BATTERY_VOLTAGE_MIN_PERCENTAGE;
 extern float lastReadBatteryVoltageBox;
 extern float lastReadBatteryVoltageServos;
 
+// Testing
+extern bool shouldDisplayFunctionTasksExecutionLogs;
+
 #endif

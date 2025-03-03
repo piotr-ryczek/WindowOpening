@@ -29,6 +29,7 @@
 #include <bluetoothWrapper.h>
 #include <batteryVoltageMeter.h>
 #include <timeHelpers.h>
+#include <periodicalTasksQueue.h>
 #include <valuesJitterFilter.h>
 
 /**
@@ -49,17 +50,20 @@ using namespace std;
 
 TwoWire I2C_BME_280 = TwoWire(1);
 
-TaskHandle_t NavigationTask;
-TaskHandle_t WarningsTask;
+// Task Handles
+TaskHandle_t CheckPeriodicalTasksQueue;
 TaskHandle_t ServosSmoothMovementTask;
-TaskHandle_t WifiConnectionTask;
-TaskHandle_t WeatherForecastAndAirPollutionTask;
 TaskHandle_t WindowOpeningCalculationTask;
-TaskHandle_t DisplayTask;
-TaskHandle_t HttpTask;
 TaskHandle_t NTPTask;
-TaskHandle_t BLETask;
-TaskHandle_t BatteryMeterTask;
+// Optional
+TaskHandle_t CheckMemoryTask;
+
+const int CHECK_PERIODICAL_TASKS_QUEUE_TASK_STACK_SIZE = 12288;
+const int SERVOS_SMOOTH_MOVEMENT_TASK_STACK_SIZE = 1536;
+const int WINDOW_OPENING_CALCULATION_TASK_STACK_SIZE = 4096;
+const int NTP_TASK_STACK_SIZE = 3072;
+const int CHECK_MEMORY_TASK_STACK_SIZE = 4096;
+
 // Instances
 
 ValuesJitterFilter valuesJitterFilter;
@@ -84,7 +88,7 @@ Navigation navigation(POTENTIOMETER_GPIO, true, servoPullOpenWrapper, servoPullC
 ButtonHandler enterButton(ENTER_BUTTON_GPIO);
 ButtonHandler exitButton(EXIT_BUTTON_GPIO);
 
-BackgroundApp backgroundApp(ledWrapper, lcdWrapper);
+BackgroundApp backgroundApp(ledWrapper, lcdWrapper, &warningsAreActiveMemory);
 BackendApp backendApp(&httpClient, &backgroundApp);
 
 Adafruit_BME280 bme;
@@ -128,20 +132,232 @@ void handleExitButtonPress() {
     navigation.handleBackward();
 };
 
-void navigationTask(void *param) {
-    while (true) {
-        enterButton.checkButtonPress();
-        exitButton.checkButtonPress();
-
-        vTaskDelay(10 / portTICK_PERIOD_MS);
+// Task Functions
+void warningsTaskFunction() {
+    if (shouldDisplayFunctionTasksExecutionLogs) {
+        Serial.println(">>> warningsTaskFunction executed");
     }
+
+    if (navigation.appMainState == Sleep) {
+        backgroundApp.handleWarningsDisplay();
+    }
+
+    addPeriodicalTaskInMillis(warningsTaskFunction, 100);
 }
 
-void warningsTask(void *param) {
-    while (true) {
-        if (navigation.appMainState == Sleep) {
-            backgroundApp.handleWarningsDisplay();
+void weatherForecastAndAirPollutionTaskFunction() {
+    if (shouldDisplayFunctionTasksExecutionLogs) {
+        Serial.println(">>> weatherForecastAndAirPollutionTaskFunction executed");
+    }
+
+    Serial.println("Adding to queue: BackendAppWeatherForecastAndAirPollutionQueries");
+    HttpQueryQueueItem weatherForecastAndAirPollutionQueueItem = {
+        type: BackendAppWeatherForecastAndAirPollutionQueries,
+        backendAppLog: nullptr
+    };
+
+    httpQueriesQueue.push_back(weatherForecastAndAirPollutionQueueItem);
+
+    addPeriodicalTaskInMillis(weatherForecastAndAirPollutionTaskFunction, 1000 * 60 * 60); // Once per hour
+}
+
+// unsigned long lastHttpRequestMillis = 0;
+void httpTaskFunction() {
+    if (shouldDisplayFunctionTasksExecutionLogs) {
+        Serial.println(">>> httpTaskFunction executed");
+    }
+
+    if (!httpQueriesQueue.empty()) {
+        if (isHttpQueriesQueueOccupied) {
+            addPeriodicalTaskInMillis(httpTaskFunction, 1000);
+            return;
         }
+
+        if (!isWifiConnected && !isWifiConnecting) {
+            initWifi();
+            addPeriodicalTaskInMillis(httpTaskFunction, 1000);
+            return;
+        }
+
+        if (!isWifiConnected) {
+            addPeriodicalTaskInMillis(httpTaskFunction, 1000);
+            return;
+        }
+
+        isHttpQueriesQueueOccupied = true;
+
+        HttpQueryQueueItem oldestQueryInQueue = httpQueriesQueue.front();
+
+        switch (oldestQueryInQueue.type) {
+            case BackendAppWeatherForecastAndAirPollutionQueries: {
+                Serial.println("Processing new query from the queue: BackendAppWeatherForecastAndAirPollutionQueries");
+
+                auto weatherItems = backendApp.fetchWeatherForecast();
+
+                if (weatherItems.empty()) {
+                    Serial.println("No weather data available");
+                    addPeriodicalTaskInMillis(httpTaskFunction, 1000);
+                    return;
+                }
+
+                WeatherItem weatherItem = weatherItems.front();
+                
+                backgroundApp.checkForWeatherWarning(weatherItems);
+
+                auto airPollutionData = backendApp.fetchAirPollution();
+
+                addWeatherLog(weatherItem.temperature, weatherItem.windSpeed, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
+
+                break;
+            }
+
+            case BackendAppSaveLogQuery: {
+                Serial.println("Processing new query from the queue: BackendAppSaveLogQuery");
+                backendApp.saveLogToApp(oldestQueryInQueue.backendAppLog);
+
+                break;
+            }       
+        }
+
+        httpQueriesQueue.erase(httpQueriesQueue.begin());
+        isHttpQueriesQueueOccupied = false;
+
+        disconnectWifi();
+        // lastHttpRequestMillis = millis();
+    }
+
+    addPeriodicalTaskInMillis(httpTaskFunction, 1000);
+
+    // No requests for 60 seconds, disconnect wifi
+    // if (millis() - lastHttpRequestMillis > 60000) {
+    //     disconnectWifi();
+    // }
+}
+
+void wifiConnectionTaskFunction() {
+    if (shouldDisplayFunctionTasksExecutionLogs) {
+        Serial.println(">>> wifiConnectionTaskFunction executed");
+    }
+
+    if (isWifiConnected) {
+        addPeriodicalTaskInMillis(wifiConnectionTaskFunction, 2000);
+        return;
+    }
+
+    if (!shouldTryToConnectToWifi && !isWifiConnecting) {
+        addPeriodicalTaskInMillis(wifiConnectionTaskFunction, 2000);
+        return;
+    }
+
+    if (shouldTryToConnectToWifi) {
+        shouldTryToConnectToWifi = false;
+        isWifiConnecting = true;
+    }
+
+    Serial.println("Trying to connect to WiFi");
+
+    auto wifiStatus = WiFi.waitForConnectResult();
+
+    Serial.print("WiFi Status: ");
+    Serial.println(wifiStatus);
+
+    switch (wifiStatus) {
+        case WL_CONNECTED: {
+            isWifiConnected = true;
+            isWifiConnecting = false;
+            Serial.println("WiFi Connected");
+            client->setInsecure();
+            break;
+        }
+
+        case WL_CONNECT_FAILED:
+        case WL_CONNECTION_LOST:
+        case WL_DISCONNECTED: {
+            isWifiConnected = false;
+            isWifiConnecting = false;
+            WiFi.disconnect();
+            initWifi();
+            break;
+        }
+
+        default: {
+            isWifiConnected = false;
+            isWifiConnecting = true;
+            Serial.println("WiFi Connecting");
+            break;
+        }
+    }
+
+    addPeriodicalTaskInMillis(wifiConnectionTaskFunction, 1000);
+}
+
+void displayTaskFunction() {
+    if (shouldDisplayFunctionTasksExecutionLogs) {
+        Serial.println(">>> displayTaskFunction executed");
+    }
+
+    lcdWrapper.checkScroll();
+
+    addPeriodicalTaskInMillis(displayTaskFunction, 1000);
+}
+
+void bleTaskFunction() {
+    if (shouldDisplayFunctionTasksExecutionLogs) {
+        Serial.println(">>> bleTaskFunction executed");
+    }
+
+    if (isBLEClientConnected) {
+        bluetoothWrapper.checkQueue();
+
+        addPeriodicalTaskInMillis(bleTaskFunction, 100);
+        return;
+    }
+
+    addPeriodicalTaskInMillis(bleTaskFunction, 2000);
+}
+
+void batteryMeterTaskFunction() {
+    if (shouldDisplayFunctionTasksExecutionLogs) {
+        Serial.println(">>> batteryMeterTaskFunction executed");
+    }
+
+    if (batteryVoltageMetersAreActiveMemory.readValue() == 0) {
+        addPeriodicalTaskInMillis(batteryMeterTaskFunction, 20000); // Once per 20 seconds
+        return;
+    }
+    
+    float batteryVoltageBox = batteryVoltageMeterBox.getVoltage();
+    float batteryPercentageBox = batteryVoltageMeterBox.calculatePercentage(batteryVoltageBox);
+
+    float batteryVoltageServos = batteryVoltageMeterServos.getVoltage();
+    float batteryPercentageServos = batteryVoltageMeterServos.calculatePercentage(batteryVoltageServos);
+
+    Serial.print("Battery Voltage Box: ");
+    Serial.println(batteryVoltageMeterBox.getBatteryVoltageMessage());
+    Serial.print("Battery Voltage Servos: ");
+    Serial.println(batteryVoltageMeterServos.getBatteryVoltageMessage());
+
+    if (batteryPercentageBox < BATTERY_VOLTAGE_MIN_PERCENTAGE || batteryPercentageServos < BATTERY_VOLTAGE_MIN_PERCENTAGE) {
+        if (batteryPercentageBox < BATTERY_VOLTAGE_MIN_PERCENTAGE) {    
+            Serial.println("Battery percentage is too low for Box");
+        }
+
+        if (batteryPercentageServos < BATTERY_VOLTAGE_MIN_PERCENTAGE) {
+            Serial.println("Battery percentage is too low for Servos");
+        }
+
+        backgroundApp.addWarning(LOW_BATTERY);
+    } else {
+        backgroundApp.removeWarning(LOW_BATTERY);
+    }
+
+    addPeriodicalTaskInMillis(batteryMeterTaskFunction, 5000); // Once per 5 seconds
+}
+
+// Tasks
+void checkPeriodicalTasksQueueTask(void *param) {
+    while (true) {
+        checkPeriodicalTasksQueue();
 
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
@@ -160,7 +376,6 @@ void servosSmoothMovementTask(void *param) {
         vTaskDelay(MOVE_SMOOTHLY_MILISECONDS_INTERVAL / portTICK_PERIOD_MS);
     }
 }
-
 
 unsigned long previousWindowOpeningCalculationMillis = 0;
 void windowOpeningCalculationTask(void *param) {
@@ -218,11 +433,11 @@ void windowOpeningCalculationTask(void *param) {
 
                 if (isWindowOpening) {
                     servoPullCloseWrapper.setMovingSmoothlyTarget(newWindowOpening);
-                    vTaskDelay(DELAY_DIFF_BETWEEN_SERVOS_MILISECONDS);
+                    vTaskDelay(DELAY_DIFF_BETWEEN_SERVOS_MILISECONDS / portTICK_PERIOD_MS);
                     servoPullOpenWrapper.setMovingSmoothlyTarget(newWindowOpening);
                 } else {
                     servoPullOpenWrapper.setMovingSmoothlyTarget(newWindowOpening);
-                    vTaskDelay(DELAY_DIFF_BETWEEN_SERVOS_MILISECONDS);
+                    vTaskDelay(DELAY_DIFF_BETWEEN_SERVOS_MILISECONDS / portTICK_PERIOD_MS);
                     servoPullCloseWrapper.setMovingSmoothlyTarget(newWindowOpening);
                 }
             }
@@ -231,140 +446,6 @@ void windowOpeningCalculationTask(void *param) {
 
             if (forceOpeningWindowCalculation == true) {
                 forceOpeningWindowCalculation = false;
-            }
-        }
-    }
-}
-
-void weatherForecastAndAirPollutionTask(void *param) {
-    while (true) {
-        Serial.println("Adding to queue: BackendAppWeatherForecastAndAirPollutionQueries");
-        HttpQueryQueueItem weatherForecastAndAirPollutionQueueItem = {
-            type: BackendAppWeatherForecastAndAirPollutionQueries,
-            backendAppLog: nullptr
-        };
-
-        httpQueriesQueue.push_back(weatherForecastAndAirPollutionQueueItem);
-
-        vTaskDelay(1000 * 60 * 60 / portTICK_PERIOD_MS); // Once per hour
-    }
-}
-
-// unsigned long lastHttpRequestMillis = 0;
-void httpTask(void *param) {
-    while (true) {
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
-
-        if (!httpQueriesQueue.empty()) {
-            if (isHttpQueriesQueueOccupied) {
-                continue;
-            }
-
-            if (!isWifiConnected && !isWifiConnecting) {
-                initWifi();
-                continue;
-            }
-
-            if (!isWifiConnected) {
-                continue;
-            }
-
-            isHttpQueriesQueueOccupied = true;
-
-            HttpQueryQueueItem oldestQueryInQueue = httpQueriesQueue.front();
-
-            switch (oldestQueryInQueue.type) {
-                case BackendAppWeatherForecastAndAirPollutionQueries: {
-                    Serial.println("Processing new query from the queue: BackendAppWeatherForecastAndAirPollutionQueries");
-
-                    auto weatherItems = backendApp.fetchWeatherForecast();
-
-                    if (weatherItems.empty()) {
-                        Serial.println("No weather data available");
-                        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second seconds
-                        continue;
-                    }
-
-                    WeatherItem weatherItem = weatherItems.front();
-                    
-                    backgroundApp.checkForWeatherWarning(weatherItems);
-
-                    auto airPollutionData = backendApp.fetchAirPollution();
-
-                    addWeatherLog(weatherItem.temperature, weatherItem.windSpeed, weatherItem.date, airPollutionData.pm25, airPollutionData.pm25Date, airPollutionData.pm10, airPollutionData.pm10Date);
-
-                    break;
-                }
-
-                case BackendAppSaveLogQuery: {
-                    Serial.println("Processing new query from the queue: BackendAppSaveLogQuery");
-                    backendApp.saveLogToApp(oldestQueryInQueue.backendAppLog);
-
-                    break;
-                }       
-            }
-
-            httpQueriesQueue.erase(httpQueriesQueue.begin());
-            isHttpQueriesQueueOccupied = false;
-
-            disconnectWifi();
-            // lastHttpRequestMillis = millis();
-        }
-
-        // No requests for 60 seconds, disconnect wifi
-        // if (millis() - lastHttpRequestMillis > 60000) {
-        //     disconnectWifi();
-        // }
-    }
-}
-
-void wifiConnectionTask(void *param) {
-    while (true) {
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
-
-        if (isWifiConnected) {
-            continue;
-        }
-
-        if (!shouldTryToConnectToWifi && !isWifiConnecting) {
-            continue;
-        }
-
-        if (shouldTryToConnectToWifi) {
-            shouldTryToConnectToWifi = false;
-            isWifiConnecting = true;
-        }
-
-        Serial.println("Trying to connect to WiFi");
-
-        auto wifiStatus = WiFi.waitForConnectResult();
-
-        Serial.print("WiFi Status: ");
-        Serial.println(wifiStatus);
-
-        switch (wifiStatus) {
-            case WL_CONNECTED: {
-                isWifiConnected = true;
-                isWifiConnecting = false;
-                Serial.println("WiFi Connected");
-                client->setInsecure();
-                break;
-            }
-
-            case WL_CONNECTION_LOST:
-            case WL_DISCONNECTED: {
-                isWifiConnected = false;
-                isWifiConnecting = false;
-                WiFi.disconnect();
-                initWifi();
-                break;
-            }
-
-            default: {
-                isWifiConnected = false;
-                isWifiConnecting = true;
-                Serial.println("WiFi Connecting");
-                break;
             }
         }
     }
@@ -395,58 +476,39 @@ void ntpTask(void *param) {
             float initialTemperature = bme.readTemperature();
             addLog(initialTemperature, 50, 0);
 
-            xTaskCreate(httpTask, "HttpTask", 10240, NULL, 5, &HttpTask);
+            addPeriodicalTaskInMillis(httpTaskFunction, 100);
+            
             vTaskDelete(NTPTask);
         }
     }
 }
 
-void displayTask(void *param) {
+void checkMemoryTask(void *param) {
     while (true) {
-        lcdWrapper.checkScroll();
+        Serial.println("Free heap: " + String(esp_get_free_heap_size()) + " bytes");
+        Serial.println("Minimum ever free heap: " + String(esp_get_minimum_free_heap_size()) + " bytes");
+
+        UBaseType_t uxHighWaterMark;
+        
+        uxHighWaterMark = uxTaskGetStackHighWaterMark(CheckPeriodicalTasksQueue);
+        Serial.printf("CheckPeriodicalTasksQueue minimum: %d / %d \n", uxHighWaterMark, CHECK_PERIODICAL_TASKS_QUEUE_TASK_STACK_SIZE);
+
+        uxHighWaterMark = uxTaskGetStackHighWaterMark(CheckMemoryTask);
+        Serial.printf("CheckMemoryTask minimum: %d / %d \n", uxHighWaterMark, CHECK_MEMORY_TASK_STACK_SIZE);
+
+        uxHighWaterMark = uxTaskGetStackHighWaterMark(WindowOpeningCalculationTask);
+        Serial.printf("WindowOpeningCalculationTask minimum: %d / %d \n", uxHighWaterMark, WINDOW_OPENING_CALCULATION_TASK_STACK_SIZE);
+
+        // Optional
+        if (!hasNTPAlreadyConfigured) {
+            uxHighWaterMark = uxTaskGetStackHighWaterMark(NTPTask);
+            Serial.printf("NTPTask minimum: %d / %d \n", uxHighWaterMark, NTP_TASK_STACK_SIZE);
+        }
+
+        uxHighWaterMark = uxTaskGetStackHighWaterMark(ServosSmoothMovementTask);
+        Serial.printf("ServosSmoothMovementTask minimum: %d / %d \n", uxHighWaterMark, SERVOS_SMOOTH_MOVEMENT_TASK_STACK_SIZE);
 
         vTaskDelay(1000 / portTICK_PERIOD_MS); // Once per second
-    }
-}
-
-void bleTask(void *param) {
-    while (true) {
-        if (isBLEClientConnected) {
-            bluetoothWrapper.checkQueue();
-        }
-
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-    }
-}
-
-void batteryMeterTask(void *param) {
-    while (true) {
-        float batteryVoltageBox = batteryVoltageMeterBox.getVoltage();
-        float batteryPercentageBox = batteryVoltageMeterBox.calculatePercentage(batteryVoltageBox);
-
-        float batteryVoltageServos = batteryVoltageMeterServos.getVoltage();
-        float batteryPercentageServos = batteryVoltageMeterServos.calculatePercentage(batteryVoltageServos);
-
-        Serial.print("Battery Voltage Box: ");
-        Serial.println(batteryVoltageMeterBox.getBatteryVoltageMessage());
-        Serial.print("Battery Voltage Servos: ");
-        Serial.println(batteryVoltageMeterServos.getBatteryVoltageMessage());
-
-        if (batteryPercentageBox < BATTERY_VOLTAGE_MIN_PERCENTAGE || batteryPercentageServos < BATTERY_VOLTAGE_MIN_PERCENTAGE) {
-            if (batteryPercentageBox < BATTERY_VOLTAGE_MIN_PERCENTAGE) {    
-                Serial.println("Battery percentage is too low for Box");
-            }
-
-            if (batteryPercentageServos < BATTERY_VOLTAGE_MIN_PERCENTAGE) {
-                Serial.println("Battery percentage is too low for Servos");
-            }
-
-            backgroundApp.addWarning(LOW_BATTERY);
-        } else {
-            backgroundApp.removeWarning(LOW_BATTERY);
-        }
-
-        vTaskDelay(5000 / portTICK_PERIOD_MS); // Once per 5 seconds
     }
 }
 
@@ -486,22 +548,31 @@ void setup() {
 
     servoPullOpenWrapper.initialize(SERVO_PULL_OPEN_PWM_TIMER_INDEX);
     servoPullCloseWrapper.initialize(SERVO_PULL_CLOSE_PWM_TIMER_INDEX);
-    
-    xTaskCreate(warningsTask, "WarningsTask", 1536, NULL, 1, &WarningsTask);
-    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", 1536, NULL, 1, &ServosSmoothMovementTask);
-    xTaskCreate(displayTask, "displayTask", 1536, NULL, 1, &DisplayTask);
-    xTaskCreate(weatherForecastAndAirPollutionTask, "weatherForecastAndAirPollutionTask", 1536, NULL, 1, &WeatherForecastAndAirPollutionTask);
-    xTaskCreate(navigationTask, "NavigationTask", 2048, NULL, 1, &NavigationTask);
-    xTaskCreate(wifiConnectionTask, "WifiConnectionTask", 3072, NULL, 1, &WifiConnectionTask);
-    xTaskCreate(ntpTask, "NTPTask", 3072, NULL, 1, &NTPTask);
-    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", 4096 , NULL, 1, &WindowOpeningCalculationTask);
-    xTaskCreate(bleTask, "BLETask", 3072 , NULL, 1, &BLETask);
-    xTaskCreate(batteryMeterTask, "BatteryMeterTask", 1536 , NULL, 1, &BatteryMeterTask);
+
+    // Tasks
+    xTaskCreate(checkPeriodicalTasksQueueTask, "CheckPeriodicalTasksQueueTask", CHECK_PERIODICAL_TASKS_QUEUE_TASK_STACK_SIZE, NULL, 1, &CheckPeriodicalTasksQueue);
+    xTaskCreate(servosSmoothMovementTask, "ServosSmoothMovementTask", SERVOS_SMOOTH_MOVEMENT_TASK_STACK_SIZE, NULL, 1, &ServosSmoothMovementTask);
+    xTaskCreate(ntpTask, "NTPTask", NTP_TASK_STACK_SIZE, NULL, 1, &NTPTask);
+    xTaskCreate(windowOpeningCalculationTask, "WindowOpeningCalculationTask", WINDOW_OPENING_CALCULATION_TASK_STACK_SIZE, NULL, 1, &WindowOpeningCalculationTask);
+
+    // Optional
+    // xTaskCreate(checkMemoryTask, "CheckMemoryTask", CHECK_MEMORY_TASK_STACK_SIZE, NULL, 1, &CheckMemoryTask);
+
+    // Periodical Tasks
+    addPeriodicalTaskInMillis(displayTaskFunction, 100);
+    addPeriodicalTaskInMillis(warningsTaskFunction, 500);
+    addPeriodicalTaskInMillis(weatherForecastAndAirPollutionTaskFunction, 700);
+    addPeriodicalTaskInMillis(wifiConnectionTaskFunction, 900);
+    addPeriodicalTaskInMillis(bleTaskFunction, 1100);
+    addPeriodicalTaskInMillis(batteryMeterTaskFunction, 1300);
 
     lcdWrapper.initialize();
 }
 
 void loop() {
+    enterButton.checkButtonPress();
+    exitButton.checkButtonPress();
+
     if (navigation.isMenuSelectionActivated) {
         navigation.handleMenuSelection();
     }
