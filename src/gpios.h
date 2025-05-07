@@ -29,4 +29,6 @@ const byte LCD_SCL_GPIO = 16;
 const byte BATTERY_VOLTAGE_BOX_METER_GPIO = 32;
 const byte BATTERY_VOLTAGE_SERVOS_METER_GPIO = 33;
 
+const byte SERVOS_POWER_SUPPLY_GPIO = 23;
+
 #endif

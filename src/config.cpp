@@ -33,3 +33,4 @@ float lastReadBatteryVoltageServos = 0;
 
 // Testing
 bool shouldDisplayFunctionTasksExecutionLogs = false;
+bool noTemperatureMode = false; // Testing purposes

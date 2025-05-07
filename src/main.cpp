@@ -31,16 +31,11 @@
 #include <timeHelpers.h>
 #include <periodicalTasksQueue.h>
 #include <valuesJitterFilter.h>
-
+#include <servosPowerSupply.h>
 /**
  * How to simulate calculations:
  * AppModeEnum AppMode = Manual; -> Auto
  * float currentTemperature = bme.readTemperature(); -> hardcode temperature
- */
-
-/**
- * Further next:
- * - WebApp to aggregate data
  */
 
 #define EEPROM_SIZE 768
@@ -58,7 +53,7 @@ TaskHandle_t NTPTask;
 // Optional
 TaskHandle_t CheckMemoryTask;
 
-const int CHECK_PERIODICAL_TASKS_QUEUE_TASK_STACK_SIZE = 12288;
+const int CHECK_PERIODICAL_TASKS_QUEUE_TASK_STACK_SIZE = 14336;
 const int SERVOS_SMOOTH_MOVEMENT_TASK_STACK_SIZE = 1536;
 const int WINDOW_OPENING_CALCULATION_TASK_STACK_SIZE = 4096;
 const int NTP_TASK_STACK_SIZE = 3072;
@@ -77,10 +72,12 @@ WiFiClientSecure *client = new WiFiClientSecure;
 BatteryVoltageMeter batteryVoltageMeterBox(BATTERY_VOLTAGE_BOX_METER_GPIO, BATTERY_VOLTAGE_0_REFERENCE, BATTERY_VOLTAGE_100_REFERENCE, lastReadBatteryVoltageBox);
 BatteryVoltageMeter batteryVoltageMeterServos(BATTERY_VOLTAGE_SERVOS_METER_GPIO, BATTERY_VOLTAGE_0_REFERENCE, BATTERY_VOLTAGE_100_REFERENCE, lastReadBatteryVoltageServos);
 
+ServosPowerSupply servosPowerSupply(SERVOS_POWER_SUPPLY_GPIO);
+
 Servo servoPullOpen;
 Servo servoPullClose;
-ServoWrapper servoPullOpenWrapper(SERVO_PULL_OPEN_GPIO, servoPullOpen, servoPullOpenCalibrationMinMemory, servoPullOpenCalibrationMaxMemory);
-ServoWrapper servoPullCloseWrapper(SERVO_PULL_CLOSE_GPIO, servoPullClose, servoPullCloseCalibrationMinMemory, servoPullCloseCalibrationMaxMemory);
+ServoWrapper servoPullOpenWrapper(SERVO_PULL_OPEN_GPIO, servoPullOpen, servoPullOpenCalibrationMinMemory, servoPullOpenCalibrationMaxMemory, servosPowerSupply);
+ServoWrapper servoPullCloseWrapper(SERVO_PULL_CLOSE_GPIO, servoPullClose, servoPullCloseCalibrationMinMemory, servoPullCloseCalibrationMaxMemory, servosPowerSupply);
 
 LedWrapper ledWrapper(LED_RED_PWM_TIMER_INDEX, LED_RED_GPIO, LED_GREEN_PWM_TIMER_INDEX, LED_GREEN_GPIO, LED_BLUE_PWM_TIMER_INDEX, LED_BLUE_GPIO);
 
@@ -400,7 +397,7 @@ void windowOpeningCalculationTask(void *param) {
         ) {
             Serial.println("Calculating window opening");
 
-            float currentTemperature = bme.readTemperature();
+            float currentTemperature = noTemperatureMode ? optimalTemperatureMemory.readValue() : bme.readTemperature();
             auto [newWindowOpening, backendAppLog] = PIDController::calculateWindowOpening(currentTemperature);
 
             // Save to Backend
@@ -473,7 +470,7 @@ void ntpTask(void *param) {
             hasNTPAlreadyConfigured = true; // It happens only once
 
             // Init first log (50 will be invalid value probably)
-            float initialTemperature = bme.readTemperature();
+            float initialTemperature = noTemperatureMode ? optimalTemperatureMemory.readValue() : bme.readTemperature();
             addLog(initialTemperature, 50, 0);
 
             addPeriodicalTaskInMillis(httpTaskFunction, 100);
@@ -528,12 +525,15 @@ void setup() {
 
     I2C_BME_280.begin(BME_280_SDA_GPIO, BME_280_SCL_GPIO, 100000); 
 
-    if (!bme.begin(BME280_ADDRESS, &I2C_BME_280)) {
-        Serial.println("BME280 not working correctly");
-        while (1);
-    }
+    if (!noTemperatureMode) {
+        if (!bme.begin(BME280_ADDRESS, &I2C_BME_280)) {
+            Serial.println("BME280 not working correctly");
+            while (1);
+        }
 
-    Serial.println("BME280 initialized");
+        Serial.println("BME280 initialized");
+    }
+    
     bluetoothWrapper.initialize();
 
     delay(100);
@@ -545,6 +545,8 @@ void setup() {
     exitButton.initialize();
     enterButton.attachButtonPressCallback(handleEnterButtonPress);
     exitButton.attachButtonPressCallback(handleExitButtonPress);
+
+    servosPowerSupply.initialize();
 
     servoPullOpenWrapper.initialize(SERVO_PULL_OPEN_PWM_TIMER_INDEX);
     servoPullCloseWrapper.initialize(SERVO_PULL_CLOSE_PWM_TIMER_INDEX);
@@ -570,6 +572,7 @@ void setup() {
 }
 
 void loop() {
+    // Navigation
     enterButton.checkButtonPress();
     exitButton.checkButtonPress();
 
@@ -611,6 +614,9 @@ void loop() {
             break;
         }
     }
+
+    // Power Supply to Servos
+    servosPowerSupply.checkTargetState();
 
     delay(20);
 }

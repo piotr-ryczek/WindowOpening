@@ -5,7 +5,7 @@
 
 const uint8_t moveSpeedDelay = 5; // miliseconds
 
-ServoWrapper::ServoWrapper(byte servoGpio, Servo& servo, MemoryValue& minMemoryValue, MemoryValue& maxMemoryValue): servo(servo), minMemoryValue(minMemoryValue), maxMemoryValue(maxMemoryValue) {
+ServoWrapper::ServoWrapper(byte servoGpio, Servo& servo, MemoryValue& minMemoryValue, MemoryValue& maxMemoryValue, ServosPowerSupply& servosPowerSupply): servo(servo), minMemoryValue(minMemoryValue), maxMemoryValue(maxMemoryValue), servosPowerSupply(servosPowerSupply) {
     this->servoGpio = servoGpio;
     this->min = 0;
     this->max = 180;
@@ -43,7 +43,11 @@ void ServoWrapper::setMax(uint8_t newMax) {
 }
 
 void ServoWrapper::write(uint8_t newPositionDegrees) {
+    this->servosPowerSupply.turnOn();
+
     servo.write(newPositionDegrees);
+    
+    this->servosPowerSupply.turnOffDelayed();
 }
 
 uint8_t ServoWrapper::readFromServo() {

@@ -40,5 +40,6 @@ extern float lastReadBatteryVoltageServos;
 
 // Testing
 extern bool shouldDisplayFunctionTasksExecutionLogs;
+extern bool noTemperatureMode;
 
 #endif
