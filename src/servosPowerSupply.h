@@ -8,13 +8,13 @@ const uint16_t SERVO_POWER_SUPPLY_DELAY = 2000;
 class ServosPowerSupply {
     private:
         byte servosPowerSupplyGpio;
-        byte currentState;
         byte targetState;
         void turnOff();
         void setState(byte state);
         unsigned long turningOffCommandTime;
 
     public:
+        byte currentState;
         ServosPowerSupply(byte servoGpio);
         void initialize();
         void turnOn();

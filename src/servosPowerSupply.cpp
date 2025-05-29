@@ -1,9 +1,12 @@
 #include "servosPowerSupply.h"
 
+const int POWER_ON = LOW;
+const int POWER_OFF = HIGH;
+
 ServosPowerSupply::ServosPowerSupply(byte servosPowerSupplyGpio) {
     this->servosPowerSupplyGpio = servosPowerSupplyGpio;
-    this->currentState = LOW;
-    this->targetState = LOW;
+    this->currentState = POWER_OFF;
+    this->targetState = POWER_OFF;
     this->turningOffCommandTime = 0;
 }
 
@@ -13,24 +16,24 @@ void ServosPowerSupply::initialize() {
 }
 
 void ServosPowerSupply::turnOn() {
-    if (this->currentState == LOW) {
+    if (this->currentState == POWER_OFF) {
         Serial.println("Turning ON servos power supply");
     }
 
-    this->targetState = HIGH;
-    this->currentState = HIGH;
+    this->targetState = POWER_ON;
+    this->currentState = POWER_ON;
     digitalWrite(servosPowerSupplyGpio, this->currentState);
 }
 
 void ServosPowerSupply::turnOff() {
     Serial.println("Turning OFF servos power supply");
 
-    this->currentState = LOW;
+    this->currentState = POWER_OFF;
     digitalWrite(servosPowerSupplyGpio, this->currentState);
 }
 
 void ServosPowerSupply::turnOffDelayed() {
-    this->targetState = LOW;
+    this->targetState = POWER_OFF;
     this->turningOffCommandTime = millis();
 }
 
@@ -39,7 +42,7 @@ void ServosPowerSupply::checkTargetState() {
         return;
     }
 
-    if (this->targetState == LOW) {
+    if (this->targetState == POWER_OFF) {
         if (millis() - this->turningOffCommandTime > SERVO_POWER_SUPPLY_DELAY) {
             this->turnOff();
         }
